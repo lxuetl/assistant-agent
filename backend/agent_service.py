@@ -1,31 +1,31 @@
 import os
 import math
-import asyncio
+import asyncio# 异步编程核心库
 from typing import AsyncGenerator, List, Dict, Any
-from langchain_openai import ChatOpenAI
+from langchain_openai import ChatOpenAI# LangChain 封装的 OpenAI 兼容模型类
 from langchain_core.messages import HumanMessage, SystemMessage, ToolMessage, AIMessage
 
 
-# --- 1. 模型工厂 (解耦创建逻辑)
+# 模型工厂
 class ModelFactory:
     @staticmethod
     def create_chat_model():
         return ChatOpenAI(
             base_url="https://dashscope.aliyuncs.com/compatible-mode/v1",
             model="qwen3.5-flash",
-            temperature=0,
+            temperature=0,# 温度=0，回答更精准、无随机性
             streaming=True,  # 开启流式输出
-            verbose=False
+            verbose=False ## 关闭详细日志
         )
-#  工具箱 (业务逻辑层)
+#  工具箱
 class AgentTools:
     @staticmethod
     def course_knowledge_search(query: str):
-        from rag_service import ask_knowledge_base
+        from rag_service import ask_knowledge_base#调用知识库
         return ask_knowledge_base(query)
 
     @staticmethod
-    def expert_calculator(expression: str):
+    def expert_calculator(expression: str):#安全执行数学表达式计算
         try:
             return str(eval(expression, {"__builtins__": None}, {"math": math}))
         except Exception as e:
@@ -35,12 +35,13 @@ class AgentTools:
 # 核心 Agent 类 (支持中间件和流式)
 class A25Agent:
     def __init__(self):
-        self.llm = ModelFactory.create_chat_model()
+        self.llm = ModelFactory.create_chat_model()#创建大模型实例
         self.tools_map = {
             "course_knowledge_search": AgentTools.course_knowledge_search,
             "expert_calculator": AgentTools.expert_calculator
         }
         # 定义工具描述
+        # self.tools_desc：按 LangChain 规范定义工具元信息（名称、描述、参数），大模型会根据这个描述判断 “什么时候该调用哪个工具”；
         self.tools_desc = [
             {
                 "type": "function",
@@ -60,6 +61,7 @@ class A25Agent:
                 }
             }
         ]
+        #给大模型绑定工具能力，这是实现 “自动工具调用” 的关键 —— 大模型会分析用户问题，决定是否调用工具、调用哪个工具
         self.llm_with_tools = self.llm.bind_tools(self.tools_desc)
 
     # --- 模拟中间件 Hooks ---
