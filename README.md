@@ -1,3 +1,17 @@
+自己找一个大模型，获得api-key，这里我用的是阿里云百炼的api，模型是千问的
+
+要用的库：openai langchain及其社区拓展包等，
+
+以下是一些方便复制使用的指令
+后端运行指令uvicorn main:app --reload
+前端运行代码npm run dev
+
+仓库修改
+git add .
+git commit -m "这里写你今天干了啥"
+git push
+
+
 【A25】可嵌入式跨课程AI Agent通用架构平台【中国计量大学】
 发布时间： 2026-02-12 17:00:11
 《A类赛题手册》下载地址：https://www.fwwb.org.cn/news/show/598
