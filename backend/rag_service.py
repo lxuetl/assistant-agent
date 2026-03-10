@@ -21,7 +21,7 @@ retriever = vectorstore.as_retriever(search_kwargs={"k": 2})
 
 llm = ChatOpenAI(
     base_url="https://dashscope.aliyuncs.com/compatible-mode/v1",
-    model="qwen-plus"
+    model="qwen3.5-flash"
 )
 
 #制定结构化的 Prompt 提示词模板

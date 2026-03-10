@@ -19,21 +19,51 @@ function App() {
   const sendMessage = async () => {
     if (!input.trim()) return;
 
-    const newChatLog = [...chatLog, { role: 'user', content: input }];
+    // 1. 先把用户的消息放进聊天框
+    const userMsg = { role: 'user', content: input };
+    const newChatLog = [...chatLog, userMsg];
     setChatLog(newChatLog);
+
+    // 准备一个空的 AI 消息占位，用来接收流式文字
+    const aiMsgPlaceholder = { role: 'ai', content: '' };
+    setChatLog([...newChatLog, aiMsgPlaceholder]);
+
+    const currentInput = input; // 暂存输入内容
     setInput('');
     setIsLoading(true);
 
     try {
-      const res = await fetch('http://localhost:8000/ask', {
+      // 💡 修改点 1：将 URL 改为 /api/chat (与后端对齐)
+      const res = await fetch('http://127.0.0.1:8000/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: input })
+        body: JSON.stringify({ message: currentInput })
       });
-      const data = await res.json();
-      setChatLog([...newChatLog, { role: 'ai', content: data.reply }]);
+
+      // 💡 修改点 2：不要用 res.json()，改用读取器 (Reader)
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let accumulatedContent = "";
+
+      // 持续读取后端传来的“活水”
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break; // 读取完成，退出循环
+
+        const chunk = decoder.decode(value); // 将字节流转为文字
+        accumulatedContent += chunk;
+
+        // 💡 实时更新界面，实现“打字机”效果
+        setChatLog(prevLog => {
+          const updatedLog = [...prevLog];
+          const lastIndex = updatedLog.length - 1;
+          updatedLog[lastIndex] = { ...updatedLog[lastIndex], content: accumulatedContent };
+          return updatedLog;
+        });
+      }
     } catch (error) {
-      setChatLog([...newChatLog, { role: 'ai', content: '❌ 网络开小差了，请检查后端服务是否启动。' }]);
+      console.error("Streaming error:", error);
+      setChatLog(prev => [...prev.slice(0, -1), { role: 'ai', content: '连接超时，请检查后端服务。' }]);
     } finally {
       setIsLoading(false);
     }
