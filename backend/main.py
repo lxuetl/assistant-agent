@@ -4,17 +4,19 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from agent_service import A25Agent
 
+
+
 # 1. 初始化应用和 Agent
 app = FastAPI(title="A25 Agent API")
 agent = A25Agent()
 
-# 2. 配置跨域 (React 默认 5173)
+# 2. 配置跨域
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
+    allow_origins=["*"],  # 允许所有域名跨域（cpolar的域名变了也不怕）
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["*"],  # 允许 OPTIONS, POST, GET 等所有方法
+    allow_headers=["*"],  # 允许所有请求头
 )
 
 

@@ -33,8 +33,9 @@ function App() {
     setIsLoading(true);
 
     try {
-      // 💡 修改点 1：将 URL 改为 /api/chat (与后端对齐)
-      const res = await fetch('http://127.0.0.1:8000/api/chat', {
+
+      // ✅ 正确写法（把活儿交给 Nginx 门卫去内部转发）：
+     const res = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ message: currentInput })
