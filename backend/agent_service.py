@@ -12,7 +12,7 @@ class ModelFactory:
     def create_chat_model():
         return ChatOpenAI(
             base_url="https://dashscope.aliyuncs.com/compatible-mode/v1",
-            model="qwen3.5-flash",
+            model="qwen3-vl-plus-2025-12-19",#换了个视觉模型
             temperature=0,# 温度=0，回答更精准、无随机性
             streaming=True,  # 开启流式输出
             verbose=False ## 关闭详细日志
@@ -21,7 +21,7 @@ class ModelFactory:
 class AgentTools:
     @staticmethod
     def course_knowledge_search(query: str):
-        from rag_service import ask_knowledge_base#调用知识库
+        from rag_service import ask_knowledge_base#这里结合了rag_service文件，调用知识库
         return ask_knowledge_base(query)
 
     @staticmethod
@@ -47,7 +47,8 @@ class A25Agent:
                 "type": "function",
                 "function": {
                     "name": "course_knowledge_search",
-                    "description": "查询课件、PDF资料时调用。",
+                    # 🌟 加上严厉的警告，防止它乱用工具
+                    "description": "查询历史课件、PDF资料时调用。注意：如果要读取当前屏幕、当前网页内容，请【绝对不要】调用此工具，直接看上下文即可！",
                     "parameters": {"type": "object", "properties": {"query": {"type": "string"}}, "required": ["query"]}
                 }
             },
@@ -71,10 +72,34 @@ class A25Agent:
     async def _after_tool_hook(self, tool_name, result):
         print(f" [工具反馈] {tool_name} 执行结果: {str(result)[:50]}...")
 
-    async def execute_stream(self, user_input: str) -> AsyncGenerator[str, None]:
+    async def execute_stream(self, user_input: str, page_context: dict = None) -> AsyncGenerator[str, None]:
+
+        # 1. 准备系统设定文字
+        sys_prompt = "你是一个专业的 A25 教学助教。请灵活使用工具。如果收到图片，请仔细观察图片内容来回答。\n"
+        sys_prompt += "【最高指令】：如果用户让你看屏幕、读取界面，请直接从下方的【网页实时抓取数据】中提取，千万不要调用搜索工具！\n"
+        if page_context:
+            sys_prompt += f"\n--- 网页实时抓取数据 ---\n【标题】: {page_context.get('title', '未知')}\n"
+            if page_context.get('content'):
+                sys_prompt += f"【文字内容】:\n{page_context.get('content')}\n"
+            sys_prompt += f"------------------------\n\n"
+
+        # 🌟 2. 偷梁换柱：把系统提示词和用户输入合并成一段文字！
+        combined_text = sys_prompt + "【用户问题】: " + user_input
+
+        # 3. 组装多模态消息列表
+        user_content_list = [{"type": "text", "text": combined_text}]
+
+        # 如果有图片，把图片追加进去
+        if page_context and page_context.get('images'):
+            for img_url in page_context['images'][:3]:
+                user_content_list.append({
+                    "type": "image_url",
+                    "image_url": {"url": img_url}
+                })
+
+        # 🚨 4. 关键修复：抛弃 SystemMessage，只传一个包含所有内容的 HumanMessage！
         messages = [
-            SystemMessage(content="你是一个专业的 A25 教学助教。请灵活使用工具回答。"),
-            HumanMessage(content=user_input)
+            HumanMessage(content=user_content_list)
         ]
 
         for _ in range(5):

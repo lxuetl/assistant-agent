@@ -6,12 +6,33 @@ function App() {
     { role: 'ai', content: '同学你好！我是 A25 跨课程智能助教，有什么我可以帮你的吗？' }
   ]);
   const [isLoading, setIsLoading] = useState(false);
+
+  // 💡 新增 1：用来存储抓取到的网页上下文
+  const [pageContext, setPageContext] = useState(null);
+
   const messagesEndRef = useRef(null);
+
+  // 💡 新增 2：监听外部插件传来的 postMessage 快递
+  useEffect(() => {
+    console.log("🟢 A25 前端已挂载，正在等待接收网页上下文...");
+
+    const handleMessage = (event) => {
+      // 检查是不是我们插件发来的专属暗号
+      if (event.data && event.data.type === 'A25_PAGE_CONTEXT') {
+        console.log("✅ React 成功接收到网页内容:", event.data);
+        setPageContext(event.data); // 把网页内容存起来
+      }
+    };
+
+    window.addEventListener('message', handleMessage);
+    return () => window.removeEventListener('message', handleMessage);
+  }, []);
 
   // 自动滚动到最新消息
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   };
+
   useEffect(() => {
     scrollToBottom();
   }, [chatLog]);
@@ -19,7 +40,7 @@ function App() {
   const sendMessage = async () => {
     if (!input.trim()) return;
 
-    // 1. 先把用户的消息放进聊天框
+    // 1. 先把用户的消息放进聊天框 (界面上依然只显示用户手打的字)
     const userMsg = { role: 'user', content: input };
     const newChatLog = [...chatLog, userMsg];
     setChatLog(newChatLog);
@@ -32,16 +53,20 @@ function App() {
     setInput('');
     setIsLoading(true);
 
-    try {
+    // 🌟 新增 3：隐身注入魔法！悄悄把网页内容拼接到发给后端的数据里
+    let finalMessageToSend = currentInput;
+    if (pageContext && pageContext.content) {
+      finalMessageToSend = `【系统隐秘背景：当前用户正在浏览的网页标题是《${pageContext.title}》，网页核心内容如下：\n${pageContext.content}\n】\n\n基于以上网页内容，请回答用户的问题：${currentInput}`;
+    }
 
-      // ✅ 正确写法（把活儿交给 Nginx 门卫去内部转发）：
-     const res = await fetch('/api/chat', {
+    try {
+      // 发送请求，注意这里 body 传的是组装过后的 finalMessageToSend
+      const res = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: currentInput })
+        body: JSON.stringify({ message: finalMessageToSend })
       });
 
-      // 💡 修改点 2：不要用 res.json()，改用读取器 (Reader)
       const reader = res.body.getReader();
       const decoder = new TextDecoder();
       let accumulatedContent = "";
@@ -49,12 +74,11 @@ function App() {
       // 持续读取后端传来的“活水”
       while (true) {
         const { done, value } = await reader.read();
-        if (done) break; // 读取完成，退出循环
+        if (done) break;
 
-        const chunk = decoder.decode(value); // 将字节流转为文字
+        const chunk = decoder.decode(value);
         accumulatedContent += chunk;
 
-        // 💡 实时更新界面，实现“打字机”效果
         setChatLog(prevLog => {
           const updatedLog = [...prevLog];
           const lastIndex = updatedLog.length - 1;
@@ -74,7 +98,6 @@ function App() {
     <div style={{
       width: '100vw', height: '100vh', display: 'flex', justifyContent: 'center', alignItems: 'center', backgroundColor: 'transparent'
     }}>
-      {/* 模拟的悬浮窗面板 */}
       <div style={{
         width: '380px', height: '600px', backgroundColor: '#fff', borderRadius: '16px',
         boxShadow: '0 8px 32px rgba(0, 0, 0, 0.12)', display: 'flex', flexDirection: 'column', overflow: 'hidden', border: '1px solid #ebeef5'
@@ -86,13 +109,25 @@ function App() {
           <h3 style={{ margin: 0, fontSize: '16px', fontWeight: '600' }}>A25 智能助教 (在线)</h3>
         </div>
 
+        {/* 💡 新增 4：装逼特效 - 顶部的“AI正在同步阅读”提示条 */}
+        {pageContext && (
+          <div style={{
+            backgroundColor: '#e6f4ff', padding: '8px 16px', fontSize: '12px', color: '#1677ff',
+            borderBottom: '1px solid #91caff', display: 'flex', alignItems: 'center'
+          }}>
+            <span style={{ marginRight: '6px' }}>👁️</span>
+            <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+              AI 已获取网页: {pageContext.title}
+            </span>
+          </div>
+        )}
+
         {/* 聊天消息区 */}
         <div style={{ flex: 1, padding: '16px', overflowY: 'auto', backgroundColor: '#f5f7fa' }}>
           {chatLog.map((msg, index) => (
             <div key={index} style={{
               display: 'flex', marginBottom: '16px', flexDirection: msg.role === 'user' ? 'row-reverse' : 'row'
             }}>
-              {/* 头像 */}
               <div style={{
                 width: '36px', height: '36px', borderRadius: '50%', display: 'flex', justifyContent: 'center', alignItems: 'center',
                 backgroundColor: msg.role === 'user' ? '#1677ff' : '#fff', color: msg.role === 'user' ? '#fff' : '#1677ff',
@@ -101,13 +136,12 @@ function App() {
                 {msg.role === 'user' ? '我' : 'AI'}
               </div>
 
-              {/* 消息气泡 */}
               <div style={{
                 maxWidth: '70%', padding: '12px 16px', fontSize: '14px', lineHeight: '1.5',
                 backgroundColor: msg.role === 'user' ? '#1677ff' : '#fff',
                 color: msg.role === 'user' ? '#fff' : '#333',
                 borderRadius: msg.role === 'user' ? '16px 4px 16px 16px' : '4px 16px 16px 16px',
-                boxShadow: '0 2px 6px rgba(0,0,0,0.04)', wordWrap: 'break-word'
+                boxShadow: '0 2px 6px rgba(0,0,0,0.04)', wordWrap: 'break-word', whiteSpace: 'pre-wrap'
               }}>
                 {msg.content}
               </div>
