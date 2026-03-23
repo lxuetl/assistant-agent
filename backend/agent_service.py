@@ -4,6 +4,8 @@ import asyncio# 异步编程核心库
 from typing import AsyncGenerator, List, Dict, Any
 from langchain_openai import ChatOpenAI# LangChain 封装的 OpenAI 兼容模型类
 from langchain_core.messages import HumanMessage, SystemMessage, ToolMessage, AIMessage
+import json
+import re
 
 
 # 模型工厂
@@ -12,7 +14,7 @@ class ModelFactory:
     def create_chat_model():
         return ChatOpenAI(
             base_url="https://dashscope.aliyuncs.com/compatible-mode/v1",
-            model="qwen3-vl-plus-2025-12-19",#换了个视觉模型
+            model="qwen3.5-35b-a3b",#换了个多模态模型
             temperature=0,# 温度=0，回答更精准、无随机性
             streaming=True,  # 开启流式输出
             verbose=False ## 关闭详细日志
@@ -143,6 +145,47 @@ class A25Agent:
                 await self._after_tool_hook(t_name, result)
                 messages.append(ToolMessage(content=str(result), tool_call_id=tool_call["id"]))
 
+    async def generate_quiz(self, page_context: dict) -> dict:
+        if not page_context or not page_context.get('content'):
+            return {"error": "没有抓取到课件内容，无法出题！"}
+
+        sys_prompt = """你是一个严谨的大学助教。请根据用户提供的课件内容，生成1道高质量的单选题。
+你必须严格按照以下 JSON 格式输出，不要包含任何额外的 Markdown 标记、解释或废话：
+{
+    "question": "题目内容...",
+    "options": [
+        {"key": "A", "value": "选项A的内容"},
+        {"key": "B", "value": "选项B的内容"},
+        {"key": "C", "value": "选项C的内容"},
+        {"key": "D", "value": "选项D的内容"}
+    ],
+    "answer": "A",
+    "explanation": "详细的答案解析..."
+}"""
+
+        user_content = f"请根据以下课件内容出题：\n{page_context.get('content')}"
+        messages = [
+            SystemMessage(content=sys_prompt),
+            HumanMessage(content=user_content)
+        ]
+
+        try:
+            # 调用模型生成纯文本
+            response = await self.llm.ainvoke(messages)
+            raw_text = response.content
+
+            # 暴力清洗 JSON 外面的多余符号
+            cleaned_text = re.sub(r'```json\s*', '', raw_text)
+            cleaned_text = re.sub(r'```\s*', '', cleaned_text).strip()
+
+            quiz_data = json.loads(cleaned_text)
+            return quiz_data
+        except json.JSONDecodeError as e:
+            print(f"JSON 解析失败: {e}\n原始返回: {raw_text}")
+            return {"error": "AI 生成的题目格式有误，请重试。"}
+        except Exception as e:
+            print(f"出题发生异常: {e}")
+            return {"error": str(e)}
 # --- 4. 测试启动 ---
 if __name__ == "__main__":
     agent = A25Agent()

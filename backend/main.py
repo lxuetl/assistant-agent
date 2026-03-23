@@ -3,7 +3,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from agent_service import A25Agent
-
+from fastapi import FastAPI, Request
+from fastapi.responses import JSONResponse
 
 
 # 1. 初始化应用和 Agent
@@ -39,6 +40,19 @@ async def chat_endpoint(request: ChatRequest):
         media_type="text/event-stream"
     )
 
+
+@app.post("/api/quiz")
+async def generate_quiz_endpoint(request: Request):
+    data = await request.json()
+    page_context = data.get("page_context")
+
+    # 呼叫刚才写好的出题大脑
+    quiz_result = await agent.generate_quiz(page_context)
+
+    if "error" in quiz_result:
+        return JSONResponse(status_code=400, content=quiz_result)
+
+    return quiz_result
 
 if __name__ == "__main__":
     import uvicorn
