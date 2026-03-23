@@ -2,7 +2,7 @@
   test.pdf是测试pdf，这个代码它目前读取纯文本的pdf可以，其他有些问题，后续考虑下怎么改
 """
 import os
-from langchain_community.document_loaders import PyPDFLoader
+from langchain_community.document_loaders import PyMuPDFLoader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_openai import OpenAIEmbeddings
 from langchain_chroma import Chroma
@@ -21,7 +21,7 @@ CHROMA_DB_DIR = "./chroma_db"
 def build_vector_store(pdf_path: str):
     print(f" 正在加载 PDF 文件: {pdf_path} ...")
     # 3. 加载 PDF
-    loader = PyPDFLoader(
+    loader = PyMuPDFLoader(
         file_path=f"./{pdf_path}"
     )
     docs = loader.load()

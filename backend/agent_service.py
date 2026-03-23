@@ -1,11 +1,12 @@
 import os
 import math
-import asyncio# 异步编程核心库
+import asyncio # 异步编程核心库
 from typing import AsyncGenerator, List, Dict, Any
-from langchain_openai import ChatOpenAI# LangChain 封装的 OpenAI 兼容模型类
+from langchain_openai import ChatOpenAI # LangChain 封装的 OpenAI 兼容模型类
 from langchain_core.messages import HumanMessage, SystemMessage, ToolMessage, AIMessage
 import json
 import re
+from ocr_service import extract_text_from_images
 
 
 # 模型工厂
@@ -14,20 +15,21 @@ class ModelFactory:
     def create_chat_model():
         return ChatOpenAI(
             base_url="https://dashscope.aliyuncs.com/compatible-mode/v1",
-            model="qwen3.5-35b-a3b",#换了个多模态模型
-            temperature=0,# 温度=0，回答更精准、无随机性
+            model="qwen3.5-35b-a3b", # 换了个多模态模型
+            temperature=0, # 温度=0，回答更精准、无随机性
             streaming=True,  # 开启流式输出
-            verbose=False ## 关闭详细日志
+            verbose=False # 关闭详细日志
         )
-#  工具箱
+
+# 工具箱
 class AgentTools:
     @staticmethod
     def course_knowledge_search(query: str):
-        from rag_service import ask_knowledge_base#这里结合了rag_service文件，调用知识库
+        from rag_service import ask_knowledge_base # 这里结合了rag_service文件，调用知识库
         return ask_knowledge_base(query)
 
     @staticmethod
-    def expert_calculator(expression: str):#安全执行数学表达式计算
+    def expert_calculator(expression: str): # 安全执行数学表达式计算
         try:
             return str(eval(expression, {"__builtins__": None}, {"math": math}))
         except Exception as e:
@@ -37,19 +39,17 @@ class AgentTools:
 # 核心 Agent 类 (支持中间件和流式)
 class A25Agent:
     def __init__(self):
-        self.llm = ModelFactory.create_chat_model()#创建大模型实例
+        self.llm = ModelFactory.create_chat_model() # 创建大模型实例
         self.tools_map = {
             "course_knowledge_search": AgentTools.course_knowledge_search,
             "expert_calculator": AgentTools.expert_calculator
         }
         # 定义工具描述
-        # self.tools_desc：按 LangChain 规范定义工具元信息（名称、描述、参数），大模型会根据这个描述判断 “什么时候该调用哪个工具”；
         self.tools_desc = [
             {
                 "type": "function",
                 "function": {
                     "name": "course_knowledge_search",
-                    # 🌟 加上严厉的警告，防止它乱用工具
                     "description": "查询历史课件、PDF资料时调用。注意：如果要读取当前屏幕、当前网页内容，请【绝对不要】调用此工具，直接看上下文即可！",
                     "parameters": {"type": "object", "properties": {"query": {"type": "string"}}, "required": ["query"]}
                 }
@@ -64,7 +64,7 @@ class A25Agent:
                 }
             }
         ]
-        #给大模型绑定工具能力，这是实现 “自动工具调用” 的关键 —— 大模型会分析用户问题，决定是否调用工具、调用哪个工具
+        # 给大模型绑定工具能力
         self.llm_with_tools = self.llm.bind_tools(self.tools_desc)
 
     # --- 模拟中间件 Hooks ---
@@ -75,7 +75,6 @@ class A25Agent:
         print(f" [工具反馈] {tool_name} 执行结果: {str(result)[:50]}...")
 
     async def execute_stream(self, user_input: str, page_context: dict = None) -> AsyncGenerator[str, None]:
-
         # 1. 准备系统设定文字
         sys_prompt = "你是一个专业的 A25 教学助教。请灵活使用工具。如果收到图片，请仔细观察图片内容来回答。\n"
         sys_prompt += "【最高指令】：如果用户让你看屏幕、读取界面，请直接从下方的【网页实时抓取数据】中提取，千万不要调用搜索工具！\n"
@@ -105,39 +104,30 @@ class A25Agent:
         ]
 
         for _ in range(5):
-            # 💡 关键：创建一个变量来累积完整的回复
             final_chunk = None
 
             async for chunk in self.llm_with_tools.astream(messages):
-                # 将碎片缝合起来
                 if final_chunk is None:
                     final_chunk = chunk
                 else:
                     final_chunk += chunk
 
-                # 实时推送文字内容给前端
                 if chunk.content:
                     yield chunk.content
 
-            # 将缝合后的完整 AIMessage 添加到历史记录
             messages.append(final_chunk)
 
-            # 检查是否有完整的工具调用
             if not final_chunk.tool_calls:
                 break
 
-            # 此时 final_chunk.tool_calls 里的参数才是完整的
             for tool_call in final_chunk.tool_calls:
                 t_name = tool_call["name"]
                 t_args = tool_call["args"]
 
-                # 给前端一个状态提示
                 yield f"\n> [系统状态] 正在调用 {t_name}...\n"
 
                 func = self.tools_map.get(t_name)
-                # 容错处理：确保参数存在再调用
                 if func:
-                    # 这里的 **t_args 现在会有正确的 'query' 或 'expression' 了
                     result = func(**t_args)
                 else:
                     result = "错误：未知工具"
@@ -145,11 +135,25 @@ class A25Agent:
                 await self._after_tool_hook(t_name, result)
                 messages.append(ToolMessage(content=str(result), tool_call_id=tool_call["id"]))
 
+    # 👇 这里的缩进已经全部修好了！
     async def generate_quiz(self, page_context: dict) -> dict:
-        if not page_context or not page_context.get('content'):
-            return {"error": "没有抓取到课件内容，无法出题！"}
+        image_urls = page_context.get('images', [])
 
-        sys_prompt = """你是一个严谨的大学助教。请根据用户提供的课件内容，生成1道高质量的单选题。
+        if not image_urls:
+            return {"error": "前端未传回任何课件图片，无法出题！"}
+
+        print(f"👁️ [出题引擎] 接收到 {len(image_urls)} 张课件截图，正在启动 OCR 动态提取...")
+
+        # 1. 调用咱们的 OCR 兵工厂，把图片变成纯文字（最多读前2张，保证速度）
+        extracted_text = extract_text_from_images(image_urls, max_images=2)
+
+        if not extracted_text.strip():
+            return {"error": "OCR 提取失败或图片上没有文字，无法出题。"}
+
+        print(f"📄 [出题引擎] 成功提取到 {len(extracted_text)} 字的真实课件内容，准备交由大模型出题！")
+
+        # 2. 强迫大模型输出 JSON 的提示词
+        sys_prompt = """你是一个严谨的大学助教。请严格根据用户提供的【从课件上提取的真实文字】，生成1道高质量的单选题。
 你必须严格按照以下 JSON 格式输出，不要包含任何额外的 Markdown 标记、解释或废话：
 {
     "question": "题目内容...",
@@ -163,29 +167,34 @@ class A25Agent:
     "explanation": "详细的答案解析..."
 }"""
 
-        user_content = f"请根据以下课件内容出题：\n{page_context.get('content')}"
+        # 🌟 3. 把 OCR 提取出的“真材实料”喂给纯文本大模型！
+        user_content = f"请严格根据以下我刚从屏幕课件上提取的真实文字出题，必须确保题目和答案在这段文字中能找到依据：\n{extracted_text}"
+
         messages = [
             SystemMessage(content=sys_prompt),
             HumanMessage(content=user_content)
         ]
 
         try:
-            # 调用模型生成纯文本
+            # 依然使用你原来那极其便宜的 qwen3.5-35b-a3b 纯文本模型
             response = await self.llm.ainvoke(messages)
             raw_text = response.content
 
-            # 暴力清洗 JSON 外面的多余符号
+            # 清洗 JSON
             cleaned_text = re.sub(r'```json\s*', '', raw_text)
             cleaned_text = re.sub(r'```\s*', '', cleaned_text).strip()
 
             quiz_data = json.loads(cleaned_text)
+            print("🎉 [出题引擎] 基于 OCR 的严谨出题圆满完成！")
             return quiz_data
+
         except json.JSONDecodeError as e:
-            print(f"JSON 解析失败: {e}\n原始返回: {raw_text}")
+            print(f"❌ JSON 解析失败: {e}\n原始返回: {raw_text}")
             return {"error": "AI 生成的题目格式有误，请重试。"}
         except Exception as e:
-            print(f"出题发生异常: {e}")
+            print(f"❌ 出题发生异常: {e}")
             return {"error": str(e)}
+
 # --- 4. 测试启动 ---
 if __name__ == "__main__":
     agent = A25Agent()
