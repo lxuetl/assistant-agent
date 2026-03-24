@@ -6,7 +6,7 @@ from agent_service import A25Agent
 from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
-from database import get_db, QuizRecord
+from database import get_db, QuizRecord,ChatHistory
 
 # 1. 初始化应用和 Agent
 app = FastAPI(title="A25 Agent API")
@@ -29,15 +29,38 @@ class ChatRequest(BaseModel):
 
 # 4. 路由：核心流式接口
 @app.post("/api/chat")
-async def chat_endpoint(request: ChatRequest):
+async def chat_endpoint(request: ChatRequest, db: Session = Depends(get_db)):  # 👈 注入了数据库 db
     if not request.message.strip():
         raise HTTPException(status_code=400, detail="Message cannot be empty")
 
     print(f" [收到请求]: {request.message}")
 
-    # 使用 StreamingResponse 保持长连接，一个字一个字地吐
+    # 🌟 核心魔法：写一个拦截器生成器
+    async def stream_and_save():
+        full_ai_response = ""  # 准备一个空篮子，用来接 AI 吐出来的每一个字
+
+        # 1. 把 agent 吐出来的字，一边传给前端，一边偷偷放进篮子里
+        async for chunk in agent.execute_stream(request.message):
+            full_ai_response += chunk  # 收集拼接
+            yield chunk  # 实时发给前端，保证打字机效果不卡顿
+
+        # 2. 当上面的 for 循环结束时，说明 AI 说完话了！此时开始存数据库
+        try:
+            # 记录用户的提问
+            user_record = ChatHistory(role="user", content=request.message)
+            # 记录 AI 的完整回答
+            ai_record = ChatHistory(role="ai", content=full_ai_response)
+
+            db.add_all([user_record, ai_record])
+            db.commit()
+            print("💾 [数据库] 聊天记忆已成功刻入脑海！")
+        except Exception as e:
+            db.rollback()
+            print(f"❌ [数据库] 聊天记忆保存失败: {e}")
+
+    # 依然返回流式响应，但这次用的是咱们加了料的 stream_and_save()
     return StreamingResponse(
-        agent.execute_stream(request.message),
+        stream_and_save(),
         media_type="text/event-stream"
     )
 
