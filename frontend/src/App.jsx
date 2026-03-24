@@ -55,7 +55,6 @@ function App() {
     setShowExplanation(false);
 
     try {
-      // ⚠️ 如果你的后端接口不是 localhost:8000，请修改这里
       const response = await fetch('/api/quiz', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -76,8 +75,7 @@ function App() {
     }
   };
 
-  // 🎯 新增：收起练习，并无缝融入对话流
-  // 🎯 升级版：收起练习，不仅融入对话流，还悄悄存入数据库！
+  // 🎯 收起练习，并无缝融入对话流，同时悄悄存入数据库
   const handleCloseQuiz = () => {
     if (showExplanation && selectedOption && quiz) {
       const isCorrect = selectedOption === quiz.answer;
@@ -96,7 +94,6 @@ function App() {
 
       setChatLog(prev => [...prev, reportMsg, aiReply]);
 
-      // 👇 🌟 【全新加入的黑科技】🌟 👇
       // 悄悄给后端的 SQLite 数据库发送一条 POST 记录
       fetch('/api/save_quiz_record', {
         method: 'POST',
@@ -116,7 +113,6 @@ function App() {
         }
       })
       .catch(err => console.error("数据库写入失败:", err));
-      // 👆 🌟 ====================== 🌟 👆
     }
 
     setQuiz(null);
@@ -128,27 +124,37 @@ function App() {
   const sendMessage = async () => {
     if (!input.trim()) return;
 
-    const userMsg = { role: 'user', content: input };
+    const currentInput = input;
+    const userMsg = { role: 'user', content: currentInput };
+
+    // 立即在前端界面显示用户发的消息（只显示纯净的问题，不显示隐秘背景）
     const newChatLog = [...chatLog, userMsg];
     setChatLog(newChatLog);
 
     const aiMsgPlaceholder = { role: 'ai', content: '' };
     setChatLog([...newChatLog, aiMsgPlaceholder]);
 
-    const currentInput = input;
     setInput('');
     setIsLoading(true);
 
-    let finalMessageToSend = currentInput;
+    // 🌟 【核心修改区域】：构建纯净的请求体 🌟
+    const requestBody = {
+      message: currentInput // 字段1：干净的用户聊天内容
+    };
+
+    // 字段2：如果抓到了网页，单独放在 page_context 字段里传给后端
     if (pageContext && pageContext.content) {
-      finalMessageToSend = `【系统隐秘背景：当前用户正在浏览的网页标题是《${pageContext.title}》，网页核心内容如下：\n${pageContext.content}\n】\n\n基于以上网页内容，请回答用户的问题：${currentInput}`;
+      requestBody.page_context = {
+        title: pageContext.title,
+        content: pageContext.content
+      };
     }
 
     try {
       const res = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: finalMessageToSend })
+        body: JSON.stringify(requestBody) // 👈 发送结构分离的数据
       });
 
       const reader = res.body.getReader();
@@ -192,7 +198,7 @@ function App() {
           <h3 style={{ margin: 0, fontSize: '16px', fontWeight: '600' }}>A25 智能助教 (在线)</h3>
         </div>
 
-        {/* 装逼特效 - 顶部的“AI正在同步阅读”提示条 */}
+        {/* 顶部的“AI正在同步阅读”提示条 */}
         {pageContext && (
           <div style={{
             backgroundColor: '#e6f4ff', padding: '8px 16px', fontSize: '12px', color: '#1677ff',
@@ -205,10 +211,9 @@ function App() {
           </div>
         )}
 
-        {/* 出题按钮与答题卡 UI (只在获取到网页内容时显示) */}
+        {/* 出题按钮与答题卡 UI */}
         {pageContext && (
           <div style={{ padding: '10px 16px', backgroundColor: '#fff', borderBottom: '1px solid #ebeef5' }}>
-            {/* 只有在没有展开答题卡的时候，才显示出题按钮 */}
             {!quiz && (
               <button
                 onClick={handleGenerateQuiz}
@@ -223,11 +228,8 @@ function App() {
               </button>
             )}
 
-            {/* 答题卡实体 */}
             {quiz && (
               <div style={{ marginTop: '5px', padding: '15px', backgroundColor: '#fafafa', border: '1px solid #e8e8e8', borderRadius: '8px', position: 'relative' }}>
-
-                {/* 🌟 右上角的关闭按钮 */}
                 <button
                   onClick={handleCloseQuiz}
                   style={{ position: 'absolute', top: '10px', right: '10px', background: 'transparent', border: 'none', cursor: 'pointer', fontSize: '18px', color: '#999', padding: '0 5px' }}
@@ -281,7 +283,6 @@ function App() {
                       </p>
                     </div>
 
-                    {/* 🌟 做完题后的引导按钮 */}
                     <button
                       onClick={handleCloseQuiz}
                       style={{ padding: '10px', backgroundColor: '#fff', border: '1px solid #1677ff', color: '#1677ff', borderRadius: '6px', cursor: 'pointer', fontSize: '13px', fontWeight: 'bold' }}

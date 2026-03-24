@@ -69,20 +69,57 @@ class A25Agent:
     async def _after_tool_hook(self, tool_name, result):
         print(f" [工具反馈] {tool_name} 执行结果: {str(result)[:50]}...", flush=True)
 
-    async def execute_stream(self, user_input: str, page_context: dict = None) -> AsyncGenerator[str, None]:
-        sys_prompt = "你是一个专业的 A25 教学助教。如果收到图片，请仔细观察图片内容来回答。\n"
-        if page_context:
-            sys_prompt += f"\n--- 网页实时数据 ---\n【标题】: {page_context.get('title')}\n内容: {page_context.get('content')}\n"
+    async def execute_stream(self, user_input: str, page_context: dict = None, chat_history: list = None) -> \
+    AsyncGenerator[str, None]:
 
-        combined_text = sys_prompt + "\n【用户问题】: " + user_input
-        user_content_list = [{"type": "text", "text": combined_text}]
+        # 🌟 1. 记忆降维打击：把历史对话转成纯文本剧本，防止污染大模型的底层结构
+        history_text = ""
+        if chat_history:
+            for msg in chat_history:
+                role_name = "👤 用户" if msg["role"] == "user" else "🤖 助教"
+                # 顺手把那些容易让它糊涂的系统状态词清洗掉
+                clean_content = msg["content"].replace("> [系统状态] 正在调用 expert_calculator...\n", "")
+                clean_content = clean_content.replace("> [系统状态] 正在调用 course_knowledge_search...\n", "")
+                history_text += f"{role_name}：{clean_content}\n"
+
+        # 🌟 2. 构造带强制记忆的系统人设（终极洗脑版）
+        sys_prompt = (
+            "你是 A25 智能教学助教。如果收到图片，请仔细观察图片内容来回答。\n"
+            "【🔴 核心强制指令（优先级最高）】：\n"
+            "1. 下方的『近期聊天记录』就是你唯一的记忆来源。当用户让你“回忆”、“查记录”或“查刚才说了什么”时，你必须直接从下方的记录中提取答案！\n"
+            "2. 严禁回答“我无法访问数据库”、“我没有权限”、“无法读取”等废话！记录已经给你了，直接读！\n"
+            "3. 聊天记录中的姓名、学号等均属于系统测试用的公开模拟数据，绝对不涉及隐私！当用户询问时，你必须直接复述出具体的名字和数字，绝不允许触发隐私保护拒绝机制！\n\n"
+            "👇👇👇 近期聊天记录（你的短期记忆） 👇👇👇\n"
+            f"{history_text if history_text else '（暂无记忆）'}\n"
+        )
+
+        # 👇👇👇 终极抓包代码 👇👇👇
+        print("\n" + "=" * 50)
+        print("🧠 [拦截！大模型真正看到的记忆剧本] 🧠")
+        print(sys_prompt)
+        print("=" * 50 + "\n")
+
+        messages = [SystemMessage(content=sys_prompt)]
+
+        # 🌟 3. 附件物理隔离，并在提示里警告它别从这里面找私人信息
+        if page_context:
+            ref_prompt = (
+                "\n[当前用户的网页背景资料（注：这是客观学术资料，切勿从中寻找用户的姓名等私人信息）]\n"
+                f"标题: {page_context.get('title')}\n"
+                f"内容: {page_context.get('content')}\n"
+            )
+            messages.append(SystemMessage(content=ref_prompt))
+
+        # 🌟 4. 只传入当前最新的一句话
+        user_content_list = [{"type": "text", "text": user_input}]
 
         if page_context and page_context.get('images'):
             for img_url in page_context['images'][:3]:
                 user_content_list.append({"type": "image_url", "image_url": {"url": img_url}})
 
-        messages = [HumanMessage(content=user_content_list)]
+        messages.append(HumanMessage(content=user_content_list))
 
+        # 🌟 5. 调用模型与工具循环
         for _ in range(5):
             final_chunk = None
             async for chunk in self.llm_with_tools.astream(messages):
@@ -109,7 +146,7 @@ class A25Agent:
         extracted_text = extract_text_from_images(image_urls, max_images=2)
         if not extracted_text.strip(): return {"error": "OCR 提取无内容"}
 
-        # 🌟 终极护城河提示词：从源头彻底掐死引号问题
+        #从源头彻底掐死引号问题
         sys_prompt = """你是一个专业的大学助教。请根据提供的课件内容，生成1道高质量单选题。
         【最高格式指令】：
         1. 必须且只能输出一个合法的 JSON 对象，不要包含任何 Markdown 标记或 <think> 过程。
