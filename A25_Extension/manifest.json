@@ -1,0 +1,14 @@
+{
+  "manifest_version": 3,
+  "name": "A25 智慧助教 (超星伴随版)",
+  "version": "1.0",
+  "description": "在学习通网页右侧自动注入 AI 助教",
+  "content_scripts": [
+    {
+      "matches": ["*://*.chaoxing.com/*"], 
+      "js": ["content.js"],
+      "run_at": "document_idle",
+      "all_frames": true
+    }
+  ]
+}
