@@ -1,16 +1,17 @@
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException,Depends,Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from agent_service import A25Agent
-from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
-
+from sqlalchemy.orm import Session
+from pydantic import BaseModel
+from database import get_db, QuizRecord
 
 # 1. 初始化应用和 Agent
 app = FastAPI(title="A25 Agent API")
 agent = A25Agent()
-
+print("🚀 我是后端，我活得好好的！")
 # 2. 配置跨域
 app.add_middleware(
     CORSMiddleware,
@@ -54,6 +55,41 @@ async def generate_quiz_endpoint(request: Request):
 
     return quiz_result
 
+
+class QuizRecordCreate(BaseModel):
+    question: str
+    user_choice: str
+    correct_answer: str
+    is_correct: bool
+    explanation: str = ""
+
+
+# ==========================================
+# 🌟 新增：保存做题记录的 API 接口
+# ==========================================
+@app.post("/api/save_quiz_record")
+async def save_quiz_record(record: QuizRecordCreate, db: Session = Depends(get_db)):
+    """接收前端传来的做题结果，并存入 SQLite 数据库"""
+    try:
+        # 1. 把接收到的数据转换成数据库的一行记录
+        new_record = QuizRecord(
+            question=record.question,
+            user_choice=record.user_choice,
+            correct_answer=record.correct_answer,
+            is_correct=record.is_correct,
+            explanation=record.explanation
+        )
+        # 2. 塞进数据库并保存 (Commit)
+        db.add(new_record)
+        db.commit()
+        db.refresh(new_record)  # 获取生成的主键 ID
+
+        print(f"💾 [数据库] 成功收录一条做题记录，ID: {new_record.id}，正确与否: {record.is_correct}")
+        return {"status": "success", "message": "已成功收录至错题本！", "id": new_record.id}
+    except Exception as e:
+        db.rollback()  # 如果报错，撤销刚才的操作，保护数据库
+        print(f"❌ [数据库] 保存记录失败: {e}")
+        return {"error": str(e)}
 if __name__ == "__main__":
     import uvicorn
 

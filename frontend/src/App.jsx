@@ -56,7 +56,7 @@ function App() {
 
     try {
       // ⚠️ 如果你的后端接口不是 localhost:8000，请修改这里
-      const response = await fetch('http://localhost:8000/api/quiz', {
+      const response = await fetch('/api/quiz', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ page_context: pageContext })
@@ -77,18 +77,16 @@ function App() {
   };
 
   // 🎯 新增：收起练习，并无缝融入对话流
+  // 🎯 升级版：收起练习，不仅融入对话流，还悄悄存入数据库！
   const handleCloseQuiz = () => {
-    // 如果用户已经看了答案，就把战况汇报给大模型
     if (showExplanation && selectedOption && quiz) {
       const isCorrect = selectedOption === quiz.answer;
 
-      // 构造一条虚拟的用户发言
       const reportMsg = {
         role: 'user',
         content: `[系统记录] 我刚刚完成了一道关于课件的测试题。\n题目：${quiz.question}\n我的回答：${selectedOption}（${isCorrect ? '正确 🎉' : '错误 ❌'}）`
       };
 
-      // 构造一条大模型的贴心回复
       const aiReply = {
         role: 'ai',
         content: isCorrect
@@ -96,11 +94,31 @@ function App() {
           : '没关系，错题是最好的老师！刚才那题的解析你看懂了吗？需要我再给你通俗地讲一遍吗？'
       };
 
-      // 强行把这两条消息塞进聊天记录里
       setChatLog(prev => [...prev, reportMsg, aiReply]);
+
+      // 👇 🌟 【全新加入的黑科技】🌟 👇
+      // 悄悄给后端的 SQLite 数据库发送一条 POST 记录
+      fetch('/api/save_quiz_record', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          question: quiz.question,
+          user_choice: selectedOption,
+          correct_answer: quiz.answer,
+          is_correct: isCorrect,
+          explanation: quiz.explanation
+        })
+      })
+      .then(res => res.json())
+      .then(data => {
+        if (data.status === "success") {
+          console.log("✅ 战况已永久写入 SQLite 数据库:", data);
+        }
+      })
+      .catch(err => console.error("数据库写入失败:", err));
+      // 👆 🌟 ====================== 🌟 👆
     }
 
-    // 清理答题卡状态，把空间还给聊天框
     setQuiz(null);
     setSelectedOption(null);
     setShowExplanation(false);
