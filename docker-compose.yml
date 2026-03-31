@@ -1,0 +1,14 @@
+services:
+  backend:
+    image: a25-backend
+    container_name: a25-backend
+    ports:
+      - 8000:8000
+    environment:
+      - OPENAI_API_KEY=sk-8a9c2b5a932a48a5a2eee30e5adb8d1a
+
+  frontend:
+    image: a25-frontend
+    container_name: a25-frontend
+    ports:
+      - 5173:5173

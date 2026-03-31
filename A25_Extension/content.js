@@ -15,7 +15,7 @@
             // 创建侧边栏
             const sidebar = document.createElement('iframe');
             sidebar.id = 'a25-sidebar';
-            sidebar.src = ' https://3d997ca9.r7.cpolar.cn '; // 你的 A25 前端地址
+            sidebar.src = 'https://2f553b10.r3.cpolar.top'; // 你的 A25 前端地址
             sidebar.style.cssText = 'position:fixed; top:0; right:0; width:380px; height:100vh; z-index:2147483647; border:none; box-shadow:-5px 0 20px rgba(0,0,0,0.15); background:#fff; transition: width 0.3s;';
             document.body.appendChild(sidebar);
 

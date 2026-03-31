@@ -12,6 +12,13 @@ from typing import Optional
 
 # 1. 初始化应用和 Agent
 app = FastAPI(title="A25 Agent API")
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:5173", "http://host.docker.internal:5173"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 agent = A25Agent()
 print("🚀 我是后端，我活得好好的！")
 # 2. 配置跨域
@@ -26,8 +33,22 @@ app.add_middleware(
 
 # 3. 数据模型
 class ChatRequest(BaseModel):
+    user_id: str          # 🌟 核心新增：无论是钉钉还是插件，必须传用户ID
+    course_id: str        # 🌟 核心新增：当前在学哪门课（比如 "CS101" 或 "通用答疑"）
+    platform: str = "web" # 🌟 核心新增：数据来源（"chaoxing", "dingtalk", "web"）
     message: str
-    page_context: Optional[dict] = None  # 👈 新增：专门用来装隐秘背景的口袋
+    page_context: Optional[dict] = None
+
+class QuizRecordCreate(BaseModel):
+    user_id: str          # 🌟 新增：谁做的题
+    course_id: str        # 🌟 新增：哪门课的题
+    question: str
+    user_choice: str
+    correct_answer: str
+    is_correct: bool
+    explanation: str = ""
+
+
 
 # 4. 路由：核心流式接口
 @app.post("/api/chat")
@@ -35,35 +56,50 @@ async def chat_endpoint(request: ChatRequest, db: Session = Depends(get_db)):
     if not request.message.strip():
         raise HTTPException(status_code=400, detail="Message cannot be empty")
 
-    print(f" [收到请求]: {request.message}")
+    print(f" [收到请求] 用户: {request.user_id}, 来源: {request.platform}, 消息: {request.message}")
 
-    #  1. 翻开日记本：从数据库捞出最近的 10 条对话记录（相当于 5 轮问答）
-    # 使用 desc() 按时间倒序拿最新的，然后再 reverse() 正过来，保证时间线顺序是对的
-    recent_history = db.query(ChatHistory).order_by(desc(ChatHistory.id)).limit(10).all()
+    # 🌟 核心修改 1：查询历史记录时，只查当前 user_id 的日记本！
+    recent_history = db.query(ChatHistory)\
+        .filter(ChatHistory.user_id == request.user_id)\
+        .order_by(desc(ChatHistory.id))\
+        .limit(10).all()
     recent_history.reverse()
 
-    # 格式化成简单的字典列表，方便传给 Agent
     history_context = [{"role": h.role, "content": h.content} for h in recent_history]
 
     async def stream_and_save():
         full_ai_response = ""
 
-        #  2. 把翻出来的记忆 (history_context) 一并传给大脑
+        # 🌟 核心修改 2：把 user_id 和 course_id 传给 Agent，让大模型知道对面是谁
         async for chunk in agent.execute_stream(
                 user_input=request.message,
                 page_context=request.page_context,
-                chat_history=history_context
+                chat_history=history_context,
+                user_id=request.user_id,     # 👈 传给大脑，用于提取该学生的画像
+                course_id=request.course_id  # 👈 传给大脑，用于定位知识图谱
         ):
             full_ai_response += chunk
             yield chunk
 
-        # 3. 聊完天，继续把这次的新对话写进日记本
+        # 🌟 核心修改 3：保存聊天记录时，打上用户和课程的钢印
         try:
-            user_record = ChatHistory(role="user", content=request.message)
-            ai_record = ChatHistory(role="ai", content=full_ai_response)
+            user_record = ChatHistory(
+                user_id=request.user_id,
+                course_id=request.course_id,
+                platform=request.platform,
+                role="user",
+                content=request.message
+            )
+            ai_record = ChatHistory(
+                user_id=request.user_id,
+                course_id=request.course_id,
+                platform=request.platform,
+                role="ai",
+                content=full_ai_response
+            )
             db.add_all([user_record, ai_record])
             db.commit()
-            print("💾 [数据库] 聊天记忆已更新！")
+            print(f"💾 [数据库] 用户 {request.user_id} 的聊天记忆已更新！")
         except Exception as e:
             db.rollback()
             print(f"❌ [数据库] 聊天记忆保存失败: {e}")
@@ -101,26 +137,24 @@ class QuizRecordCreate(BaseModel):
 # ==========================================
 @app.post("/api/save_quiz_record")
 async def save_quiz_record(record: QuizRecordCreate, db: Session = Depends(get_db)):
-    """接收前端传来的做题结果，并存入 SQLite 数据库"""
     try:
-        # 1. 把接收到的数据转换成数据库的一行记录
         new_record = QuizRecord(
+            user_id=record.user_id,       # 🌟 新增写入
+            course_id=record.course_id,   # 🌟 新增写入
             question=record.question,
             user_choice=record.user_choice,
             correct_answer=record.correct_answer,
             is_correct=record.is_correct,
             explanation=record.explanation
         )
-        # 2. 塞进数据库并保存 (Commit)
         db.add(new_record)
         db.commit()
-        db.refresh(new_record)  # 获取生成的主键 ID
+        db.refresh(new_record)
 
-        print(f"💾 [数据库] 成功收录一条做题记录，ID: {new_record.id}，正确与否: {record.is_correct}")
-        return {"status": "success", "message": "已成功收录至错题本！", "id": new_record.id}
+        print(f"💾 [数据库] 成功收录用户 {record.user_id} 的做题记录")
+        return {"status": "success", "id": new_record.id}
     except Exception as e:
-        db.rollback()  # 如果报错，撤销刚才的操作，保护数据库
-        print(f" [数据库] 保存记录失败: {e}")
+        db.rollback()
         return {"error": str(e)}
 if __name__ == "__main__":
     if __name__ == "__main__":

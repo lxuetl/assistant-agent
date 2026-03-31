@@ -21,7 +21,9 @@ Base = declarative_base()
 class QuizRecord(Base):
     """错题本/做题记录表"""
     __tablename__ = "quiz_records"
-
+    user_id = Column(String, index=True)
+    course_id = Column(String, index=True)
+    platform = Column(String, default="web")
     id = Column(Integer, primary_key=True, index=True)
     question = Column(Text, nullable=False)           # 题干
     user_choice = Column(String(10), nullable=False)  # 用户选了什么 (A/B/C/D)
@@ -33,7 +35,9 @@ class QuizRecord(Base):
 class ChatHistory(Base):
     """历史聊天记录表"""
     __tablename__ = "chat_histories"
-
+    user_id = Column(String, index=True)
+    course_id = Column(String, index=True)
+    platform = Column(String, default="web")
     id = Column(Integer, primary_key=True, index=True)
     role = Column(String(50), nullable=False)         # 角色: user 或 ai
     content = Column(Text, nullable=False)            # 聊天内容

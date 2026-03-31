@@ -11,6 +11,9 @@
   </component>
   <component name="DBNavigator.Project.DatabaseAssistantManager">
     <assistants>
+      <assistant-state connection-id="f7988c0d-f80f-4358-862b-88b2c65f1b81" assistant-type="SELECT_AI" default-profile-name="" selected-chat-id="" availability="UNAVAILABLE" acknowledgement="NONE">
+        <tools />
+      </assistant-state>
       <assistant-state connection-id="f7988c0d-f80f-4358-862b-88b2c65f1b81" assistant-type="PUBLIC" default-profile-name="" selected-chat-id="DEEA9868891A4B49BEC43A91BF5904E4" availability="AVAILABLE" acknowledgement="ENGAGED" selected="true">
         <chats>
           <chat id="DEEA9868891A4B49BEC43A91BF5904E4" title="" session-signature="" timestamp="1774319973168">
@@ -18,9 +21,6 @@
             <context provider="" profile="" model="" action="" interactive="true" />
           </chat>
         </chats>
-        <tools />
-      </assistant-state>
-      <assistant-state connection-id="f7988c0d-f80f-4358-862b-88b2c65f1b81" assistant-type="SELECT_AI" default-profile-name="" selected-chat-id="" availability="UNAVAILABLE" acknowledgement="NONE">
         <tools />
       </assistant-state>
     </assistants>
@@ -43,9 +43,7 @@
     <last-used-providers />
   </component>
   <component name="DBNavigator.Project.DatabaseFileManager">
-    <open-files>
-      <object connection-id="f7988c0d-f80f-4358-862b-88b2c65f1b81" object-ref="schemas/a25_data/tables/chat_histories" />
-    </open-files>
+    <open-files />
   </component>
   <component name="DBNavigator.Project.DatabasePrerequisiteManager">
     <prerequisites />
