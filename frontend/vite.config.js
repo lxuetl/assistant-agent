@@ -5,10 +5,20 @@ export default defineConfig({
   plugins: [react()],
   server: {
     host: '0.0.0.0',
+    // 1. 你写的：允许 cpolar 穿透访问 Vite
     allowedHosts: [
       '.cpolar.cn',
-       '.cpolar.top'
-       // 💡 重点：前面加个英文句号！代表允许所有以 cpolar.cn 结尾的域名
-    ]
+      '.cpolar.top'
+    ],
+    // 2. 👇 核心追加：Vite 的内置“迷你 Nginx”代理转发
+    proxy: {
+      '/api': {
+        // 目标指向你的 FastAPI 后端
+        // 因为都在 docker-compose 里，直接用服务名 backend 呼叫！
+        target: 'http://backend:8000',
+        changeOrigin: true,
+        secure: false,
+      }
+    }
   }
 })
