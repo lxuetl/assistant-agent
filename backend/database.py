@@ -26,6 +26,7 @@ class QuizRecord(Base):
     platform = Column(String, default="web")
     id = Column(Integer, primary_key=True, index=True)
     question = Column(Text, nullable=False)           # 题干
+    options = Column(Text, nullable=True) #选项内容
     user_choice = Column(String(10), nullable=False)  # 用户选了什么 (A/B/C/D)
     correct_answer = Column(String(10), nullable=False)# 正确答案是什么
     is_correct = Column(Boolean, default=False)       # 是否做对了

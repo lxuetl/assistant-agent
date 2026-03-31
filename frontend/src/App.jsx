@@ -126,6 +126,7 @@ function App() {
           user_id: "student_888",      // 测试用 ID
           course_id: "math_101",       // 测试用课程 ID
           question: quiz.question,
+          options: JSON.stringify(quiz.options),
           user_choice: selectedOption,
           correct_answer: quiz.answer,
           is_correct: isCorrect,

@@ -5,7 +5,7 @@ services:
     ports:
       - 8000:8000
     environment:
-      - OPENAI_API_KEY=sk-8a9c2b5a932a48a5a2eee30e5adb8d1a
+      - OPENAI_API_KEY=sk-23b36403d68245dc9b5ae3afcf20d669
 
   frontend:
     image: a25-frontend

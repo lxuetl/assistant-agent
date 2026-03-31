@@ -70,14 +70,14 @@ class A25Agent:
         print(f" [工具反馈] {tool_name} 执行结果: {str(result)[:50]}...", flush=True)
 
         # 🌟 修改 1：在函数签名中增加 user_id 和 course_id 参数，并设置默认值防崩
-        async def execute_stream(
+    async def execute_stream(
                 self,
                 user_input: str,
                 page_context: dict = None,
                 chat_history: list = None,
                 user_id: str = "guest",  # 👈 新增接收用户 ID
                 course_id: str = "general"  # 👈 新增接收课程 ID
-        ) -> AsyncGenerator[str, None]:
+    ) -> AsyncGenerator[str, None]:
 
             # 🌟 1. 记忆降维打击：把历史对话转成纯文本剧本
             history_text = ""
