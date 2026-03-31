@@ -1,3 +1,63 @@
+最新代码完成了容器化。
+运行需求：安装并打开Docker。
+
+一、首次使用
+1. 克隆代码和下载镜像
+git clone https://gitee.com/laaax/a25.git
+把镜像文件（两个.tar）和克隆的代码放在同一个目录
+
+2. 加载镜像
+docker load -i a25-backend.tar
+docker load -i a25-frontend.tar
+
+3. 启动服务
+docker-compose up
+
+4. 打开主网页
+双击 embed_test/index.html
+
+二、日常使用
+1. 启动服务
+docker-compose up
+
+2. 打开主网页
+双击 embed_test/index.html
+
+三、更新代码
+1. 拉取代码，然后更新
+git pull
+
+2. 重新构建镜像
+cd backend
+docker build -t a25-backend .
+
+cd ../frontend
+docker build -t a25-frontend .
+
+3. 导出新镜像，发在群里
+cd ..
+docker save -o a25-backend.tar a25-backend
+docker save -o a25-frontend.tar a25-frontend
+
+4. 上传代码到码云
+git add .
+git commit -m "这里写更新内容说明"
+git push
+
+四、如果代码有更新，想使用更新后的代码
+1. 拉取代码
+git pull
+
+2. 加载新镜像
+docker load -i a25-backend.tar
+docker load -i a25-frontend.tar
+
+3.启动服务
+docker-compose up
+
+4. 打开主网页
+双击 embed_test/index.html
+
 自己找一个大模型，获得api-key，这里我用的是阿里云百炼的api，模型是千问的
 
 要用的库：openai langchain及其社区拓展包等，
