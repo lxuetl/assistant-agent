@@ -144,10 +144,6 @@ class A25Agent:
                     t_name = tool_call["name"]
                     func = self.tools_map.get(t_name)
 
-                    # 💡 进阶预留：如果你以后要把 course_id 传给 RAG 工具，可以在这里判断
-                    # if t_name == "course_knowledge_search":
-                    #     tool_call["args"]["course_id"] = course_id
-
                     result = func(**tool_call["args"]) if func else "未知工具"
                     yield f"\n> [系统状态] 正在调用 {t_name}...\n"
                     messages.append(ToolMessage(content=str(result), tool_call_id=tool_call["id"]))
@@ -226,6 +222,98 @@ class A25Agent:
             "last_error": last_error,
             "raw_ai_output": raw_text
         }
+
+    # ==========================================
+    # 🌟 新增核心功能：精细化作业批改引擎
+    # ==========================================
+    async def grade_homework(self, question_text: str, content_type: str, content: str, course_id: str) -> str:
+        print(f"📝 [作业批改引擎] 启动！当前课程：{course_id}，内容类型：{content_type}", flush=True)
+
+        # 1. 构造严师 Prompt，强制输出标准 JSON
+        # 🌟 核心修改：加入了 quoted_text 字段，强制 AI 摘录原文！
+        sys_prompt = f"""你现在是《{course_id}》课程的资深教授。
+请对学生提交的作业进行【精细化批改】，必须达到“教师手工批注”的级别，拒绝笼统的套话！
+
+【原题要求】：
+{question_text}
+
+【最高格式指令】：
+1. 必须且只能输出一个合法的 JSON 对象，不要包含任何 Markdown 标记或 <think> 过程。
+2. 内部绝对严禁出现破坏 JSON 结构的额外双引号或换行符！
+
+标准的输出格式必须严格如下：
+{{
+    "overall_score": 85,
+    "summary": "代码或操作逻辑基本正确，但在部分细节上存在明显漏洞。",
+    "annotations": [
+        {{
+            "location": "第2步 (B50单元格)",
+            "quoted_text": "在Sheet1的B50单元格中输入分数2/3",
+            "error_type": "格式错误",
+            "explanation": "直接输入'2/3'会被Excel识别为日期格式，而不是分数。",
+            "suggestion": "在输入前选中单元格→右键设置格式为分数，或输入 0 2/3。"
+        }}
+    ]
+}}
+⚠️ 核心注意：'quoted_text' 必须原封不动地摘录作业文本中出错误的那句话！这极其重要，后端将依赖此字段进行 Word 原生批注的精准定位！"""
+
+        messages = [SystemMessage(content=sys_prompt)]
+
+        # 2. 多模态内容挂载
+        if content_type == "image":
+            # 视觉模型标准协议
+            image_url = content if content.startswith("data:image") else f"data:image/jpeg;base64,{content}"
+            messages.append(HumanMessage(content=[
+                {"type": "text", "text": "这是我的作业截图，请批改。"},
+                {"type": "image_url", "image_url": {"url": image_url}}
+            ]))
+        else:
+            # 纯文本/代码/Word 模式
+            messages.append(HumanMessage(content=f"这是我的作业文本：\n{content}"))
+
+        max_retries = 3
+        last_error = ""
+
+        # 3. 稳如老狗的重试与 JSON 提纯机制（复用你的优秀设计）
+        for attempt in range(max_retries):
+            print(f"🚀 [批改引擎] 正在进行第 {attempt + 1} 次深度审阅...", flush=True)
+            try:
+                # 调用大模型
+                response = await self.llm.ainvoke(messages)
+                raw_text = response.content
+                print(f"\n🏮 --- AI 批改第 {attempt + 1} 次原话 ---\n{raw_text[:200]}...\n🏮 --- 结束 ---\n", flush=True)
+
+                # 精准提取 JSON 块
+                match = re.search(r'\{[\s\S]*\}', raw_text)
+                if not match:
+                    last_error = "未找到 JSON 大括号结构"
+                    continue
+
+                json_str = match.group(0)
+                json_str = re.sub(r'[\r\n\t]+', ' ', json_str).strip()
+                json_str = re.sub(r',\s*([\]}])', r'\1', json_str).strip()
+
+                # 校验 JSON 是否合法
+                json.loads(json_str)
+                print(f"🎉 [批改引擎] JSON 校验通过！成功生成批注报告！", flush=True)
+
+                # 直接返回合法的 JSON 字符串（前端会 JSON.parse）
+                return json_str
+
+            except json.JSONDecodeError as e:
+                last_error = f"JSON 解析失败: {e}"
+                print(f"⚠️ 第 {attempt + 1} 次解析失败: {last_error}", flush=True)
+            except Exception as e:
+                last_error = f"大模型调用异常: {str(e)}"
+                print(f"⚠️ 第 {attempt + 1} 次报错: {last_error}", flush=True)
+
+        # 如果彻底失败，返回一个友好的错误 JSON 字符串防崩
+        fallback_json = json.dumps({
+            "overall_score": 0,
+            "summary": f"系统开小差了，批改失败。错误信息：{last_error}",
+            "annotations": []
+        }, ensure_ascii=False)
+        return fallback_json
 
 if __name__ == "__main__":
     # 测试代码略

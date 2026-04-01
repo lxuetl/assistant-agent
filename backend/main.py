@@ -5,6 +5,15 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 from sqlalchemy import desc  # 用于倒序查询数据库历史记录
 from typing import Optional
+from fastapi import UploadFile, File
+import docx
+import fitz
+import io
+
+# 🌟 针对 PDF 扫描件 OCR 兜底新增的导入
+import base64
+from langchain_openai import ChatOpenAI
+from langchain_core.messages import HumanMessage
 
 from agent_service import A25Agent
 from database import get_db, QuizRecord, ChatHistory
@@ -36,14 +45,23 @@ class ChatRequest(BaseModel):
 
 # ✅ 唯一保留的完整做题记录模型
 class QuizRecordCreate(BaseModel):
-    user_id: str  #  新增：谁做的题
+    user_id: str  # 新增：谁做的题
     course_id: str  # 新增：哪门课的题
     question: str
-    options: str#前端把选项
+    options: str  # 前端把选项
     user_choice: str
     correct_answer: str
     is_correct: bool
     explanation: str = ""
+
+
+# 1. 定义作业批改的接收模型
+class HomeworkRequest(BaseModel):
+    user_id: str
+    course_id: str
+    question_text: str  # 🌟 学生输入的“原题内容”
+    content_type: str  # "image" (图片) 或 "text" (代码文件)
+    content: str  # 图片的 Base64 编码，或者纯文本代码
 
 
 # 4. 路由：核心流式接口
@@ -150,6 +168,138 @@ async def save_quiz_record(record: QuizRecordCreate, db: Session = Depends(get_d
         print(f"❌ 💾 [数据库] 做题记录保存失败: {str(e)}")
         # 🌟 核心修复：抛出真实的 HTTP 500 错误，让前端知道存库失败了
         raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
+
+
+# 2. 新增作业批改接口
+@app.post("/api/grade_homework")
+async def grade_homework_endpoint(request: HomeworkRequest):
+    print(f"📝 [作业批改] 收到作业，类型: {request.content_type}")
+
+    actual_content = request.content
+    doc_obj = None
+
+    # 1. 如果传上来的是 Word，解码它并提取文字喂给 AI
+    if request.content_type == "docx":
+        # 剥离前端传来的 Base64 头
+        base64_data = request.content.split(",")[-1] if "," in request.content else request.content
+        file_bytes = base64.b64decode(base64_data)
+        doc_obj = docx.Document(io.BytesIO(file_bytes))
+        # 把 Word 里的段落全拼成一长串字符串
+        actual_content = "\n".join([para.text for para in doc_obj.paragraphs])
+        print("📄 成功从上传的 Word 中解剖出纯文本。")
+
+    # 2. 呼叫大模型进行批改
+    result_str = await agent.grade_homework(
+        question_text=request.question_text,
+        content_type=request.content_type,
+        content=actual_content,
+        course_id=request.course_id
+    )
+
+    annotated_file_b64 = None
+
+    # 3. 🌟 核心魔法：如果是 Word，把 AI 的意见化作原生批注塞回去！
+    if request.content_type == "docx" and doc_obj:
+        try:
+            import json
+            grading_data = json.loads(result_str)
+
+            # 遍历 AI 找出的每一处错误
+            for ann in grading_data.get("annotations", []):
+                target_text = ann.get("quoted_text", "")
+                if not target_text: continue
+
+                # 在 Word 的段落里地毯式搜索这句话
+                for paragraph in doc_obj.paragraphs:
+                    # 只要模糊匹配上了
+                    if target_text in paragraph.text or paragraph.text in target_text:
+                        comment_text = f"【{ann['error_type']}】\n{ann['explanation']}\n💡建议：{ann['suggestion']}"
+                        # 重点：利用最新版的 python-docx 原生插入批注！
+                        if paragraph.runs:
+                            doc_obj.add_comment(paragraph.runs, text=comment_text, author="A25 教授", initials="AI")
+                        break  # 批注完这个错误，进行下一个
+
+            # 将加上批注的新 Word 重新转成 Base64 发给前端
+            output_stream = io.BytesIO()
+            doc_obj.save(output_stream)
+            annotated_file_b64 = "data:application/vnd.openxmlformats-officedocument.wordprocessingml.document;base64," + base64.b64encode(
+                output_stream.getvalue()).decode("utf-8")
+            print("🎉 成功将 AI 批注写入原生 Word 文档！")
+        except Exception as e:
+            print(f"⚠️ 写入 Word 批注失败: {e}")
+
+    return {
+        "status": "success",
+        "grading_result": result_str,
+        "annotated_file": annotated_file_b64  # 如果是 Word，这会带有文件流！
+    }
+
+# 3. 🌟 终极文档解析接口 (带 OCR 兜底机制)
+@app.post("/api/parse_question_file")
+async def parse_question_file(file: UploadFile = File(...)):
+    print(f"📄 [文档解析] 收到题目文件: {file.filename}")
+    try:
+        content = await file.read()
+        extracted_text = ""
+
+        # 解析 Word 文档 (保持不变)
+        if file.filename.lower().endswith(".docx"):
+            doc = docx.Document(io.BytesIO(content))
+            extracted_text = "\n".join([para.text for para in doc.paragraphs])
+
+        # 解析 PDF 文档
+        elif file.filename.lower().endswith(".pdf"):
+            pdf_document = fitz.open(stream=content, filetype="pdf")
+
+            # 第一波尝试：原生文本提取
+            for page_num in range(len(pdf_document)):
+                page = pdf_document.load_page(page_num)
+                extracted_text += page.get_text() + "\n"
+
+            # 🌟 核心绝杀：OCR 视觉兜底机制！如果字数极少，说明是扫描件图集！
+            if len(extracted_text.strip()) < 20:
+                print("🚨 检测到纯图片/扫描版 PDF！启动视觉大模型 (Qwen-VL) 进行 OCR 强行识别...")
+                extracted_text = ""  # 清空刚才提取出的无用乱码
+
+                # 初始化视觉大脑
+                vision_llm = ChatOpenAI(
+                    base_url="https://dashscope.aliyuncs.com/compatible-mode/v1",
+                    model="qwen-vl-max",  # 👈 阿里云专用的多模态视觉大模型
+                    temperature=0
+                )
+
+                for page_num in range(len(pdf_document)):
+                    page = pdf_document.load_page(page_num)
+                    # 将 PDF 页渲染成高清图片 (2倍分辨率保证文字清晰)
+                    pix = page.get_pixmap(matrix=fitz.Matrix(2, 2))
+                    img_data = pix.tobytes("jpeg")
+                    base64_img = base64.b64encode(img_data).decode('utf-8')
+
+                    try:
+                        # 呼叫大模型“看图识字”
+                        msg = HumanMessage(content=[
+                            {"type": "text",
+                             "text": "请提取这张作业/试卷图片中的所有文字内容。保持原有的段落排版，不要省略任何题目细节。"},
+                            {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{base64_img}"}}
+                        ])
+                        resp = await vision_llm.ainvoke([msg])
+                        extracted_text += resp.content + "\n\n"
+                        print(f"✅ 第 {page_num + 1} 页 OCR 提取成功！")
+                    except Exception as e:
+                        print(f"❌ 第 {page_num + 1} 页视觉提取失败: {e}")
+
+            pdf_document.close()
+
+        else:
+            return JSONResponse(status_code=400, content={"error": "目前仅支持 .docx 和 .pdf 格式的题目文件"})
+
+        print(f"🕵️‍♂️ [验货] 最终提取到的总字符数: {len(extracted_text)}")
+
+        return {"status": "success", "text": extracted_text.strip()}
+
+    except Exception as e:
+        print(f"❌ [文档解析失败]: {e}")
+        return JSONResponse(status_code=500, content={"error": f"文件解析失败: {str(e)}"})
 
 
 # 优雅的启动入口
