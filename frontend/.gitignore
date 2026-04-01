@@ -1,4 +1,9 @@
-# Logs
+# 1. 忽略依赖包（这是导致你刚才刷屏的元凶，必须有）
+node_modules/
+/dist
+/dist-ssr
+
+# 2. 忽略日志文件
 logs
 *.log
 npm-debug.log*
@@ -7,12 +12,13 @@ yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
 
-node_modules
-dist
-dist-ssr
+# 3. 忽略本地环境变量文件（保护你的 API Key 不泄露）
+.env
+.env.local
+.env.*.local
 *.local
 
-# Editor directories and files
+# 4. 忽略编辑器配置（防止你的个人设置影响其他同学）
 .vscode/*
 !.vscode/extensions.json
 .idea

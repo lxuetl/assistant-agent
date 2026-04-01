@@ -9,6 +9,7 @@ from fastapi import UploadFile, File
 import docx
 import fitz
 import io
+import pandas as pd
 
 # 🌟 针对 PDF 扫描件 OCR 兜底新增的导入
 import base64
@@ -170,6 +171,11 @@ async def save_quiz_record(record: QuizRecordCreate, db: Session = Depends(get_d
         raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
 
 
+import base64
+import json
+import re
+
+
 # 2. 新增作业批改接口
 @app.post("/api/grade_homework")
 async def grade_homework_endpoint(request: HomeworkRequest):
@@ -178,13 +184,12 @@ async def grade_homework_endpoint(request: HomeworkRequest):
     actual_content = request.content
     doc_obj = None
 
-    # 1. 如果传上来的是 Word，解码它并提取文字喂给 AI
+    # 1. 如果传上来的是 Word，解码它并提取文字
     if request.content_type == "docx":
         # 剥离前端传来的 Base64 头
         base64_data = request.content.split(",")[-1] if "," in request.content else request.content
         file_bytes = base64.b64decode(base64_data)
         doc_obj = docx.Document(io.BytesIO(file_bytes))
-        # 把 Word 里的段落全拼成一长串字符串
         actual_content = "\n".join([para.text for para in doc_obj.paragraphs])
         print("📄 成功从上传的 Word 中解剖出纯文本。")
 
@@ -198,40 +203,62 @@ async def grade_homework_endpoint(request: HomeworkRequest):
 
     annotated_file_b64 = None
 
-    # 3. 🌟 核心魔法：如果是 Word，把 AI 的意见化作原生批注塞回去！
+    # 3. 🌟 核心魔法：写入原生批注（带无敌兜底机制）
     if request.content_type == "docx" and doc_obj:
         try:
-            import json
             grading_data = json.loads(result_str)
 
-            # 遍历 AI 找出的每一处错误
+            # 🧹 暴力清洗函数：去掉所有的标点符号、空格、换行，只留纯文本进行比对
+            def clean_str(s):
+                return re.sub(r'\W+', '', s)
+
             for ann in grading_data.get("annotations", []):
                 target_text = ann.get("quoted_text", "")
                 if not target_text: continue
 
-                # 在 Word 的段落里地毯式搜索这句话
-                for paragraph in doc_obj.paragraphs:
-                    # 只要模糊匹配上了
-                    if target_text in paragraph.text or paragraph.text in target_text:
-                        comment_text = f"【{ann['error_type']}】\n{ann['explanation']}\n💡建议：{ann['suggestion']}"
-                        # 重点：利用最新版的 python-docx 原生插入批注！
-                        if paragraph.runs:
-                            doc_obj.add_comment(paragraph.runs, text=comment_text, author="A25 教授", initials="AI")
-                        break  # 批注完这个错误，进行下一个
+                clean_target = clean_str(target_text)
+                found_paragraph = None
 
-            # 将加上批注的新 Word 重新转成 Base64 发给前端
+                # 🔍 地毯式模糊搜索
+                for paragraph in doc_obj.paragraphs:
+                    # 跳过空行和没有内容流的段落
+                    if not paragraph.text.strip() or not paragraph.runs:
+                        continue
+
+                    clean_para = clean_str(paragraph.text)
+                    # 只要模糊包含，就视为锁定目标！
+                    if clean_target and (clean_target in clean_para or clean_para in clean_target):
+                        found_paragraph = paragraph
+                        break
+
+                comment_text = f"【{ann['error_type']}】\n{ann['explanation']}\n💡建议：{ann['suggestion']}"
+
+                # ✅ 如果找到了原文，精准挂批注！
+                if found_paragraph:
+                    # python-docx 1.2.0 原生方法
+                    doc_obj.add_comment(found_paragraph.runs, text=comment_text, author="A25教授", initials="AI")
+                else:
+                    # 🛡️ 无敌兜底：没找到原文？直接强制挂在文档有字的第一段！
+                    for p in doc_obj.paragraphs:
+                        if p.text.strip() and p.runs:
+                            doc_obj.add_comment(p.runs, text=f"【原位置：{ann['location']}】\n" + comment_text,
+                                                author="A25教授", initials="AI")
+                            break
+
+            # 打包转成 Base64 发给前端
             output_stream = io.BytesIO()
             doc_obj.save(output_stream)
             annotated_file_b64 = "data:application/vnd.openxmlformats-officedocument.wordprocessingml.document;base64," + base64.b64encode(
                 output_stream.getvalue()).decode("utf-8")
             print("🎉 成功将 AI 批注写入原生 Word 文档！")
         except Exception as e:
+            # 🚨 观察终端，如果这里打印没有 add_comment 属性，说明库没升级！
             print(f"⚠️ 写入 Word 批注失败: {e}")
 
     return {
         "status": "success",
         "grading_result": result_str,
-        "annotated_file": annotated_file_b64  # 如果是 Word，这会带有文件流！
+        "annotated_file": annotated_file_b64
     }
 
 # 3. 🌟 终极文档解析接口 (带 OCR 兜底机制)
@@ -301,6 +328,65 @@ async def parse_question_file(file: UploadFile = File(...)):
         print(f"❌ [文档解析失败]: {e}")
         return JSONResponse(status_code=500, content={"error": f"文件解析失败: {str(e)}"})
 
+
+# ==========================================
+# 🌟 新增：结构化成绩单数据分析接口 (动态学情引擎)
+# ==========================================
+@app.post("/api/analyze_scores")
+async def analyze_scores_endpoint(file: UploadFile = File(...)):
+    print(f"📊 [数据分析] 收到成绩单文件: {file.filename}")
+    try:
+        content = await file.read()
+
+        # 兼容 CSV 和 Excel 格式
+        if file.filename.lower().endswith(".csv"):
+            # 解决 Windows 下可能出现的中文编码问题
+            try:
+                df = pd.read_csv(io.BytesIO(content), encoding='utf-8')
+            except UnicodeDecodeError:
+                df = pd.read_csv(io.BytesIO(content), encoding='gbk')
+        elif file.filename.lower().endswith((".xls", ".xlsx")):
+            df = pd.read_excel(io.BytesIO(content))
+        else:
+            return JSONResponse(status_code=400, content={"error": "请上传 CSV 或 Excel 格式的成绩单"})
+
+        # 1. 动态提取科目均分（生成雷达图数据）
+        # 根据你上传的 Sheet1.csv，提取核心科目
+        subjects = ["语文", "数学", "英语"]
+        radar_data = []
+        for sub in subjects:
+            if sub in df.columns:
+                avg_score = round(df[sub].mean(), 1)
+                radar_data.append({"subject": sub, "A": avg_score, "fullMark": 100})
+
+        # 找出全班最薄弱的科目
+        weakest_subject = min(radar_data, key=lambda x: x["A"])["subject"] if radar_data else "未知"
+
+        # 2. 动态分析分数段分布（生成柱状图数据）
+        # 完全匹配你 Sheet2.csv 要求的 20 分一档的区间要求
+        bar_data = []
+        if weakest_subject in df.columns:
+            scores = df[weakest_subject].fillna(0)
+            bar_data = [
+                {"name": "0-20分", "人数": int(((scores >= 0) & (scores < 20)).sum())},
+                {"name": "20-40分", "人数": int(((scores >= 20) & (scores < 40)).sum())},
+                {"name": "40-60分", "人数": int(((scores >= 40) & (scores < 60)).sum())},
+                {"name": "60-80分", "人数": int(((scores >= 60) & (scores < 80)).sum())},
+                {"name": "80-100分", "人数": int((scores >= 80).sum())},
+            ]
+
+        print(f"✅ [数据分析] 解析完成！总人数: {len(df)}，最弱科目: {weakest_subject}")
+        return {
+            "status": "success",
+            "radar_data": radar_data,
+            "bar_data": bar_data,
+            "weakest_subject": weakest_subject,
+            "total_students": len(df)
+        }
+
+    except Exception as e:
+        print(f"❌ [数据分析失败]: {e}")
+        return JSONResponse(status_code=500, content={"error": f"数据分析失败: {str(e)}"})
 
 # 优雅的启动入口
 if __name__ == "__main__":
