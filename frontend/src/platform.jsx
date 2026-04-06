@@ -1,30 +1,91 @@
 import React, { useState } from 'react';
-// 👇 引入 recharts 的所有图表核武器
-import { Radar, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend } from 'recharts';
+import { Radar, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip } from 'recharts';
 
 export default function UserPortal() {
-  const [activeTab, setActiveTab] = useState('report'); // 默认选中学情报告
+  // ==========================================
+  // 🌟 全局状态：控制是否登录以及当前身份
+  // ==========================================
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [role, setRole] = useState('student'); // 'student' 默认选学生端
 
-  // 👇 新增状态：控制视图身份与图表动态数据
-  const [role, setRole] = useState('teacher'); // 'student' 或 'teacher'
+  // ==========================================
+  // 🌟 内部状态：A25 主功能区状态
+  // ==========================================
+  const [activeTab, setActiveTab] = useState('report');
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [classData, setClassData] = useState({
     radar: [], bar: [], weakest: '', total: 0
   });
 
-  // 👇 用于作业批改的几个核心状态
-  const [questionText, setQuestionText] = useState(''); // 存原题
-  const [fileData, setFileData] = useState(null);       // 存文件内容 (Base64 或 纯文本)
-  const [fileType, setFileType] = useState('');         // 存文件类型 ('image', 'text', 'docx')
-  const [isGrading, setIsGrading] = useState(false);    // 批改中加载状态
-  const [gradingResult, setGradingResult] = useState(null); // 存 AI 返回的结果
-  const [annotatedFile, setAnnotatedFile] = useState(null); // 🌟 新增：存后端传回来的带批注的 Word 文件流
+  const [questionText, setQuestionText] = useState('');
+  const [fileData, setFileData] = useState(null);
+  const [fileType, setFileType] = useState('');
+  const [isGrading, setIsGrading] = useState(false);
+  const [gradingResult, setGradingResult] = useState(null);
+  const [annotatedFile, setAnnotatedFile] = useState(null);
 
-  // 页面跳转函数
   const jumpToPlatform = (url) => {
     window.open(url, '_blank');
   };
 
+  // ==========================================
+  // 🎨 独立登录页 UI (未登录时显示)
+  // ==========================================
+  if (!isLoggedIn) {
+    return (
+      <div style={{ display: 'flex', height: '100vh', width: '100vw', backgroundColor: '#f0f2f5', justifyContent: 'center', alignItems: 'center', fontFamily: 'sans-serif' }}>
+        <div style={{ backgroundColor: '#fff', width: '400px', borderRadius: '16px', boxShadow: '0 8px 24px rgba(0,0,0,0.08)', overflow: 'hidden', animation: 'fadeIn 0.5s' }}>
+
+          {/* 顶部 Logo 区 */}
+          <div style={{ backgroundColor: '#1677ff', padding: '32px 0', textAlign: 'center', color: '#fff' }}>
+            <div style={{ fontSize: '48px', marginBottom: '8px' }}>🎓</div>
+            <h1 style={{ margin: 0, fontSize: '24px', letterSpacing: '2px' }}>A25 智能学习中心</h1>
+            <p style={{ margin: '8px 0 0 0', opacity: 0.8, fontSize: '14px' }}>数据驱动的下一代教育平台</p>
+          </div>
+
+          <div style={{ padding: '32px' }}>
+            {/* 角色切换 Tabs */}
+            <div style={{ display: 'flex', marginBottom: '24px', backgroundColor: '#f5f7fa', borderRadius: '8px', padding: '4px' }}>
+              <div
+                onClick={() => setRole('student')}
+                style={{ flex: 1, textAlign: 'center', padding: '10px 0', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold', transition: 'all 0.3s', backgroundColor: role === 'student' ? '#fff' : 'transparent', color: role === 'student' ? '#1677ff' : '#999', boxShadow: role === 'student' ? '0 2px 8px rgba(0,0,0,0.05)' : 'none' }}
+              >
+                👨‍🎓 学生端
+              </div>
+              <div
+                onClick={() => setRole('teacher')}
+                style={{ flex: 1, textAlign: 'center', padding: '10px 0', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold', transition: 'all 0.3s', backgroundColor: role === 'teacher' ? '#fff' : 'transparent', color: role === 'teacher' ? '#52c41a' : '#999', boxShadow: role === 'teacher' ? '0 2px 8px rgba(0,0,0,0.05)' : 'none' }}
+              >
+                👨‍🏫 教师端
+              </div>
+            </div>
+
+            {/* 模拟输入框 */}
+            <div style={{ marginBottom: '16px' }}>
+              <div style={{ fontSize: '13px', color: '#666', marginBottom: '8px', fontWeight: 'bold' }}>账号</div>
+              <input type="text" placeholder={role === 'student' ? "请输入学号 (如: 2025001)" : "请输入教工号 (如: T8001)"} style={{ width: '100%', padding: '12px', borderRadius: '8px', border: '1px solid #d9d9d9', outline: 'none', boxSizing: 'border-box' }} />
+            </div>
+            <div style={{ marginBottom: '32px' }}>
+              <div style={{ fontSize: '13px', color: '#666', marginBottom: '8px', fontWeight: 'bold' }}>密码</div>
+              <input type="password" placeholder="请输入密码" style={{ width: '100%', padding: '12px', borderRadius: '8px', border: '1px solid #d9d9d9', outline: 'none', boxSizing: 'border-box' }} />
+            </div>
+
+            {/* 登录按钮 */}
+            <button
+              onClick={() => setIsLoggedIn(true)}
+              style={{ width: '100%', padding: '14px', borderRadius: '8px', border: 'none', backgroundColor: role === 'student' ? '#1677ff' : '#52c41a', color: '#fff', fontSize: '16px', fontWeight: 'bold', cursor: 'pointer', transition: 'background 0.3s', boxShadow: role === 'student' ? '0 4px 12px rgba(22,119,255,0.3)' : '0 4px 12px rgba(82,196,26,0.3)' }}
+            >
+              登 录 系 统
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // ==========================================
+  // 💻 登录后的主系统界面
+  // ==========================================
   return (
     <div style={{ display: 'flex', height: '100vh', width: '100vw', backgroundColor: '#f5f7fa', fontFamily: 'sans-serif' }}>
 
@@ -41,21 +102,31 @@ export default function UserPortal() {
           <button onClick={() => jumpToPlatform('https://www.zhihuishu.com/')} style={{ width: '100%', padding: '12px 16px', marginBottom: '12px', backgroundColor: '#f0f2f5', border: 'none', borderRadius: '8px', cursor: 'pointer', textAlign: 'left', fontWeight: 'bold', color: '#333' }}>🌳 智慧树</button>
         </div>
 
-        {/* 🌟 底部用户信息 (带有无敌的一键切号功能) */}
-        <div
-          onClick={() => setRole(role === 'student' ? 'teacher' : 'student')}
-          style={{ padding: '20px', borderTop: '1px solid #ebeef5', display: 'flex', alignItems: 'center', cursor: 'pointer', transition: 'background 0.3s' }}
-          title="点击一键切换学生/教师视角"
-        >
-          <div style={{ width: '36px', height: '36px', borderRadius: '50%', backgroundColor: role === 'student' ? '#1677ff' : '#52c41a', color: '#fff', display: 'flex', justifyContent: 'center', alignItems: 'center', fontWeight: 'bold', marginRight: '12px' }}>
-            {role === 'student' ? '李' : '王'}
-          </div>
-          <div>
-            <div style={{ fontSize: '14px', fontWeight: 'bold', color: '#333' }}>
-              {role === 'student' ? '李同学' : '王老师 (教授)'} 切换🔄
+        {/* 🌟 底部用户信息 (替换为了正规的展示和退出登录逻辑) */}
+        <div style={{ padding: '20px', borderTop: '1px solid #ebeef5' }}>
+          <div style={{ display: 'flex', alignItems: 'center', marginBottom: '16px' }}>
+            <div style={{ width: '36px', height: '36px', borderRadius: '50%', backgroundColor: role === 'student' ? '#1677ff' : '#52c41a', color: '#fff', display: 'flex', justifyContent: 'center', alignItems: 'center', fontWeight: 'bold', marginRight: '12px' }}>
+              {role === 'student' ? '李' : '王'}
             </div>
-            <div style={{ fontSize: '12px', color: '#999' }}>计算机科学与技术</div>
+            <div>
+              <div style={{ fontSize: '14px', fontWeight: 'bold', color: '#333' }}>
+                {role === 'student' ? '李同学' : '王老师 (教授)'}
+              </div>
+              <div style={{ fontSize: '12px', color: '#999' }}>计算机科学与技术</div>
+            </div>
           </div>
+          {/* 退出登录按钮 */}
+          <button
+            onClick={() => {
+              setIsLoggedIn(false);
+              setRole('student'); // 重置状态
+            }}
+            style={{ width: '100%', padding: '8px 0', backgroundColor: '#fff', border: '1px solid #ff4d4f', color: '#ff4d4f', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold', transition: 'all 0.2s' }}
+            onMouseOver={(e) => { e.target.style.backgroundColor = '#fff1f0' }}
+            onMouseOut={(e) => { e.target.style.backgroundColor = '#fff' }}
+          >
+            🚪 退出登录
+          </button>
         </div>
       </div>
 
@@ -65,9 +136,9 @@ export default function UserPortal() {
         {/* 顶部导航 Tabs */}
         <div style={{ height: '64px', backgroundColor: '#fff', borderBottom: '1px solid #ebeef5', display: 'flex', alignItems: 'center', padding: '0 32px', gap: '32px', flexShrink: 0 }}>
           {[
-            { id: 'report', label: '📊 学情报告' },
-            { id: 'grading', label: '📝 作业批改' },
-            { id: 'agent', label: '🤖 AI 辅导助手' }
+            { id: 'report', label: '📊 学情大屏' },
+            { id: 'grading', label: '📝 智能批改' },
+            { id: 'agent', label: '🤖 AI 助手' }
           ].map(tab => (
             <div key={tab.id} onClick={() => setActiveTab(tab.id)} style={{ cursor: 'pointer', fontWeight: activeTab === tab.id ? 'bold' : 'normal', color: activeTab === tab.id ? '#1677ff' : '#666', borderBottom: activeTab === tab.id ? '3px solid #1677ff' : '3px solid transparent', padding: '20px 0', transition: 'all 0.2s' }}>
               {tab.label}
@@ -78,17 +149,11 @@ export default function UserPortal() {
         {/* 动态内容展示区 */}
         <div style={{ flex: 1, padding: '32px', overflowY: 'auto' }}>
 
-          {/* 🌟 全新升级的动态学情分析大屏 */}
+          {/* 🌟 学情大屏 */}
           {activeTab === 'report' && (
              <div style={{ animation: 'fadeIn 0.4s', maxWidth: '1000px' }}>
 
-               {/* 左上角增加极其显眼的身份切换器，用于路演装杯 */}
-               <div style={{ marginBottom: '24px', display: 'flex', gap: '12px' }}>
-                 <button onClick={() => setRole('student')} style={{ padding: '8px 16px', borderRadius: '8px', border: role === 'student' ? '2px solid #1677ff' : '1px solid #d9d9d9', backgroundColor: role === 'student' ? '#e6f4ff' : '#fff', cursor: 'pointer', fontWeight: 'bold', color: role === 'student' ? '#1677ff' : '#666' }}>👨‍🎓 李同学 (学生端)</button>
-                 <button onClick={() => setRole('teacher')} style={{ padding: '8px 16px', borderRadius: '8px', border: role === 'teacher' ? '2px solid #52c41a' : '1px solid #d9d9d9', backgroundColor: role === 'teacher' ? '#f6ffed' : '#fff', cursor: 'pointer', fontWeight: 'bold', color: role === 'teacher' ? '#52c41a' : '#666' }}>👨‍🏫 王老师 (教务端)</button>
-               </div>
-
-               {/* 👨‍🎓 学生视角：个人学情雷达 */}
+               {/* 👨‍🎓 学生视角 */}
                {role === 'student' && (
                  <>
                    <h2 style={{ margin: '0 0 24px 0', color: '#333', display: 'flex', alignItems: 'center' }}>
@@ -117,7 +182,7 @@ export default function UserPortal() {
                        <h3 style={{ marginTop: 0, color: '#cf1322', fontSize: '16px', borderBottom: '1px solid #ffe58f', paddingBottom: '8px' }}>🚨 核心薄弱点预警</h3>
                        <p style={{ color: '#555', lineHeight: '1.6', flex: 1 }}>
                          根据你最近的作业批改记录，A25 引擎发现你在 <strong>“数组公式 (Ctrl+Shift+Enter)”</strong> 上存在高频错误。<br/><br/>
-                         <strong>💡 AI 学习建议：</strong>建议在下方寻找智能助教，输入：“请给我出 3 道关于数组公式的选择题”。
+                         <strong>💡 AI 学习建议：</strong>建议前往 AI 助手界面，输入：“请给我出 3 道关于数组公式的选择题”。
                        </p>
                        <button onClick={() => setActiveTab('agent')} style={{ padding: '12px', backgroundColor: '#1677ff', color: '#fff', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold' }}>去找 AI 助教加练 🚀</button>
                      </div>
@@ -125,15 +190,13 @@ export default function UserPortal() {
                  </>
                )}
 
-               {/* 👩‍🏫 教师视角：真正的数据驱动看板 */}
+               {/* 👩‍🏫 教师视角 */}
                {role === 'teacher' && (
                  <>
                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: '24px' }}>
                      <h2 style={{ margin: 0, color: '#333', display: 'flex', alignItems: 'center' }}>
                        <span style={{fontSize:'28px', marginRight:'8px'}}>👨‍🏫</span> 25计算机班 - 动态学情诊断看板
                      </h2>
-
-                     {/* 🌟 核心触发器：上传你的原始成绩单 CSV */}
                      <div style={{ position: 'relative', overflow: 'hidden' }}>
                        <button style={{ backgroundColor: '#52c41a', color: '#fff', padding: '10px 20px', borderRadius: '8px', border: 'none', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', boxShadow: '0 4px 12px rgba(82,196,26,0.3)' }}>
                          {isAnalyzing ? '⏳ 数据急速挖掘中...' : '📂 导入本班原始成绩单 (CSV/Excel)'}
@@ -175,7 +238,6 @@ export default function UserPortal() {
                      </div>
                    </div>
 
-                   {/* 图表渲染区 */}
                    {classData.total > 0 ? (
                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px', animation: 'fadeIn 0.5s' }}>
                        <div style={{ backgroundColor: '#fff', padding: '24px', borderRadius: '12px', border: '1px solid #ebeef5', boxShadow: '0 4px 12px rgba(0,0,0,0.05)' }}>
@@ -207,19 +269,12 @@ export default function UserPortal() {
                            </ResponsiveContainer>
                          </div>
                        </div>
-
-                       <div style={{ gridColumn: '1 / 3', backgroundColor: '#fffaf0', padding: '20px', borderRadius: '8px', borderLeft: '4px solid #faad14' }}>
-                         <h4 style={{ margin: '0 0 8px 0', color: '#d46b08' }}>🤖 A25 智能教研建议：</h4>
-                         <p style={{ margin: 0, color: '#666', fontSize: '14px', lineHeight: '1.6' }}>
-                           通过对 {classData.total} 份成绩数据的全量计算，系统发现全班在 <strong>“{classData.weakest}”</strong> 科目上存在明显的短板。建议老师近期重点关注该科目的实操练习，A25 已为您生成相关随堂测验，是否一键下发？
-                         </p>
-                       </div>
                      </div>
                    ) : (
                      <div style={{ backgroundColor: '#fafafa', border: '2px dashed #d9d9d9', borderRadius: '12px', padding: '60px', textAlign: 'center', color: '#999' }}>
                        <span style={{ fontSize: '48px' }}>📂</span>
-                       <h3 style={{ margin: '16px 0 8px 0', color: '#666' }}>请点击右上角按钮导入《Excel实验原始素材文件.csv》</h3>
-                       <p>导入后，后端 Python 将极速计算平均分和区间分布，为您生成实时大屏</p>
+                       <h3 style={{ margin: '16px 0 8px 0', color: '#666' }}>暂无班级数据</h3>
+                       <p>请点击右上角导入成绩单文件，以生成实时动态看板</p>
                      </div>
                    )}
                  </>
@@ -227,74 +282,50 @@ export default function UserPortal() {
              </div>
           )}
 
-          {/* 📝 作业批改功能区 */}
+          {/* 📝 智能批改区 */}
           {activeTab === 'grading' && (
             <div style={{ animation: 'fadeIn 0.3s', maxWidth: '800px' }}>
               <h2 style={{ margin: '0 0 24px 0', color: '#333' }}>智能作业批注系统</h2>
-
               <div style={{ backgroundColor: '#fff', padding: '32px', borderRadius: '12px', border: '1px solid #ebeef5', boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
-
                 <div style={{ marginBottom: '24px' }}>
                   <div style={{ fontWeight: 'bold', color: '#333', marginBottom: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <div style={{ display: 'flex', alignItems: 'center' }}>
                       <span style={{ width: '24px', height: '24px', backgroundColor: '#1677ff', color: '#fff', borderRadius: '50%', display: 'flex', justifyContent: 'center', alignItems: 'center', marginRight: '8px', fontSize: '14px' }}>1</span>
-                      请输入原题内容，或上传题目文档：
+                      原题内容：
                     </div>
-
                     <div style={{ position: 'relative', overflow: 'hidden', display: 'inline-block' }}>
-                      <button style={{ padding: '6px 12px', backgroundColor: '#f0f2f5', border: '1px solid #d9d9d9', borderRadius: '6px', cursor: 'pointer', fontSize: '13px', color: '#666', transition: 'all 0.3s' }}>
-                        📎 自动提取 Word / PDF
+                      <button style={{ padding: '6px 12px', backgroundColor: '#f0f2f5', border: '1px solid #d9d9d9', borderRadius: '6px', cursor: 'pointer', fontSize: '13px', color: '#666' }}>
+                        📎 自动提取 Word/PDF
                       </button>
                       <input
                         type="file"
                         accept=".pdf,.docx"
-                        title="上传题目文档"
                         onChange={async (e) => {
                           const file = e.target.files[0];
                           if (!file) return;
-
                           setQuestionText("正在拼命读取文档内容，请稍候...");
-
                           const formData = new FormData();
                           formData.append('file', file);
-
                           try {
-                            const res = await fetch('http://localhost:8000/api/parse_question_file', {
-                              method: 'POST',
-                              body: formData
-                            });
+                            const res = await fetch('http://localhost:8000/api/parse_question_file', { method: 'POST', body: formData });
                             const data = await res.json();
-                            if (data.status === 'success') {
-                              setQuestionText(data.text);
-                            } else {
-                              alert("解析失败：" + data.error);
-                              setQuestionText("");
-                            }
-                          } catch (err) {
-                            alert("网络错误，请确保后端服务已启动！");
-                            setQuestionText("");
-                          }
+                            if (data.status === 'success') setQuestionText(data.text);
+                            else { alert("解析失败：" + data.error); setQuestionText(""); }
+                          } catch (err) { alert("网络错误！"); setQuestionText(""); }
                           e.target.value = null;
                         }}
                         style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', opacity: 0, cursor: 'pointer' }}
                       />
                     </div>
                   </div>
-
-                  <textarea
-                    value={questionText}
-                    onChange={(e) => setQuestionText(e.target.value)}
-                    placeholder="例如：请用 C++ 实现一个快速排序算法...（你也可以点击右上角按钮直接上传老师发的作业文档）"
-                    style={{ width: '100%', height: '120px', padding: '12px', borderRadius: '8px', border: '1px solid #d9d9d9', resize: 'vertical', outline: 'none', fontFamily: 'inherit' }}
-                  />
+                  <textarea value={questionText} onChange={(e) => setQuestionText(e.target.value)} placeholder="输入原题内容..." style={{ width: '100%', height: '100px', padding: '12px', borderRadius: '8px', border: '1px solid #d9d9d9', resize: 'vertical', outline: 'none' }} />
                 </div>
 
                 <div>
                   <div style={{ fontWeight: 'bold', color: '#333', marginBottom: '12px', display: 'flex', alignItems: 'center' }}>
                     <span style={{ width: '24px', height: '24px', backgroundColor: '#1677ff', color: '#fff', borderRadius: '50%', display: 'flex', justifyContent: 'center', alignItems: 'center', marginRight: '8px', fontSize: '14px' }}>2</span>
-                    上传你的解答（支持图片、代码或 Word 文档）：
+                    上传解答：
                   </div>
-
                   <div style={{ border: '2px dashed #1677ff', backgroundColor: fileData ? '#f6ffed' : '#e6f4ff', borderRadius: '12px', padding: '30px', textAlign: 'center', position: 'relative' }}>
                     <input
                       type="file"
@@ -303,26 +334,20 @@ export default function UserPortal() {
                         const file = e.target.files[0];
                         if (!file) return;
                         const reader = new FileReader();
-
-                        if (file.type.startsWith('image/')) {
-                          setFileType('image');
+                        if (file.type.startsWith('image/') || file.name.endsWith('.docx')) {
+                          setFileType(file.type.startsWith('image/') ? 'image' : 'docx');
                           reader.readAsDataURL(file);
-                          reader.onload = () => setFileData(reader.result);
-                        } else if (file.name.endsWith('.docx')) {
-                          setFileType('docx');
-                          reader.readAsDataURL(file);
-                          reader.onload = () => setFileData(reader.result);
                         } else {
                           setFileType('text');
                           reader.readAsText(file);
-                          reader.onload = () => setFileData(reader.result);
                         }
+                        reader.onload = () => setFileData(reader.result);
                       }}
                       style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', opacity: 0, cursor: 'pointer' }}
                     />
                     <span style={{ fontSize: '40px' }}>{fileData ? '✅' : '📤'}</span>
                     <h3 style={{ margin: '16px 0 8px 0', color: fileData ? '#52c41a' : '#1677ff' }}>
-                      {fileData ? '文件已就绪，可点击重新选择' : '点击此处选择你的作业文件'}
+                      {fileData ? '文件已就绪，点击重新选择' : '点击上传作业'}
                     </h3>
                   </div>
                 </div>
@@ -330,43 +355,24 @@ export default function UserPortal() {
                 <button
                   disabled={!questionText || !fileData || isGrading}
                   onClick={async () => {
-                    setIsGrading(true);
-                    setGradingResult(null);
-                    setAnnotatedFile(null);
-
+                    setIsGrading(true); setGradingResult(null); setAnnotatedFile(null);
                     try {
                       const res = await fetch('http://localhost:8000/api/grade_homework', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                          user_id: "student_001",
-                          course_id: "计算机科学",
-                          question_text: questionText,
-                          content_type: fileType,
-                          content: fileData
-                        })
+                        body: JSON.stringify({ user_id: "demo", course_id: "demo", question_text: questionText, content_type: fileType, content: fileData })
                       });
                       const data = await res.json();
                       if (data.status === 'success') {
                          setGradingResult(JSON.parse(data.grading_result));
-                         if (data.annotated_file) {
-                             setAnnotatedFile(data.annotated_file);
-                         }
-                      } else {
-                         alert("批改出错：" + JSON.stringify(data));
-                      }
-                    } catch (err) {
-                      console.error(err);
-                      alert("请求失败，请确保 FastAPI 后端在 8000 端口运行！");
-                    } finally {
-                      setIsGrading(false);
-                    }
+                         if (data.annotated_file) setAnnotatedFile(data.annotated_file);
+                      } else { alert("出错：" + JSON.stringify(data)); }
+                    } catch (err) { alert("请求失败！"); } finally { setIsGrading(false); }
                   }}
-                  style={{ width: '100%', marginTop: '32px', padding: '14px 0', backgroundColor: (questionText && fileData && !isGrading) ? '#1677ff' : '#ccc', color: '#fff', border: 'none', borderRadius: '8px', fontSize: '16px', fontWeight: 'bold', cursor: (questionText && fileData && !isGrading) ? 'pointer' : 'not-allowed', boxShadow: '0 4px 12px rgba(22,119,255,0.3)' }}
+                  style={{ width: '100%', marginTop: '32px', padding: '14px 0', backgroundColor: (questionText && fileData && !isGrading) ? '#1677ff' : '#ccc', color: '#fff', border: 'none', borderRadius: '8px', fontSize: '16px', fontWeight: 'bold', cursor: (questionText && fileData && !isGrading) ? 'pointer' : 'not-allowed' }}
                 >
-                  {isGrading ? '⏳ AI 教授正在深度审阅中...' : '✨ 开始 AI 智能批注'}
+                  {isGrading ? '⏳ AI 正在深度批阅...' : '✨ 开始智能批阅'}
                 </button>
-
               </div>
 
               {gradingResult && (
@@ -378,54 +384,39 @@ export default function UserPortal() {
                   <p style={{ fontSize: '16px', color: '#555', backgroundColor: '#f6ffed', padding: '12px 16px', borderRadius: '8px' }}>
                     <strong>👨‍🏫 教授点评：</strong>{gradingResult.summary}
                   </p>
-
                   <h3 style={{ marginTop: '24px', color: '#333', borderBottom: '1px solid #eee', paddingBottom: '8px' }}>📝 细节批注：</h3>
                   {gradingResult.annotations.map((ann, idx) => (
                     <div key={idx} style={{ marginBottom: '20px', padding: '16px', backgroundColor: '#fffaf0', borderLeft: '4px solid #faad14', borderRadius: '0 8px 8px 0' }}>
-                      <div style={{ fontWeight: 'bold', color: '#d46b08', marginBottom: '8px' }}>
-                        📍 {ann.location} <span style={{ fontSize: '12px', backgroundColor: '#faad14', color: '#fff', padding: '2px 8px', borderRadius: '12px', marginLeft: '8px' }}>{ann.error_type}</span>
-                      </div>
-                      <div style={{ color: '#cf1322', marginBottom: '8px', fontSize: '14px' }}><strong>❌ 问题分析：</strong>{ann.explanation}</div>
-                      <div style={{ color: '#08979c', fontSize: '14px' }}><strong>💡 修改建议：</strong>{ann.suggestion}</div>
+                      <div style={{ fontWeight: 'bold', color: '#d46b08', marginBottom: '8px' }}>📍 {ann.location}</div>
+                      <div style={{ color: '#cf1322', marginBottom: '8px', fontSize: '14px' }}><strong>❌ 问题：</strong>{ann.explanation}</div>
+                      <div style={{ color: '#08979c', fontSize: '14px' }}><strong>💡 建议：</strong>{ann.suggestion}</div>
                     </div>
                   ))}
-
                   {annotatedFile && (
-                    <button
-                      onClick={() => {
-                        const a = document.createElement('a');
-                        a.href = annotatedFile;
-                        a.download = 'A25智能批改报告.docx';
-                        a.click();
-                      }}
-                      style={{ marginTop: '24px', padding: '12px 24px', width: '100%', backgroundColor: '#52c41a', color: '#fff', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', fontSize: '16px', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '8px', transition: 'all 0.3s', boxShadow: '0 4px 12px rgba(82,196,26,0.3)' }}
-                    >
-                      📥 下载带有 AI 批注的原生 Word 文档
+                    <button onClick={() => { const a = document.createElement('a'); a.href = annotatedFile; a.download = 'AI批注.docx'; a.click(); }} style={{ marginTop: '24px', padding: '12px 24px', width: '100%', backgroundColor: '#52c41a', color: '#fff', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', fontSize: '16px' }}>
+                      📥 下载 AI 批注原文件
                     </button>
                   )}
-
                 </div>
               )}
-
             </div>
           )}
 
-          {/* 🤖 AI 辅导助手 */}
+          {/* 🤖 AI 助手 */}
           {activeTab === 'agent' && (
              <div style={{ animation: 'fadeIn 0.3s' }}>
-             <h2 style={{ margin: '0 0 24px 0', color: '#333' }}>专属答疑空间</h2>
+             <h2 style={{ margin: '0 0 24px 0', color: '#333' }}>专属辅导空间</h2>
              <div style={{ backgroundColor: '#fff', height: '400px', borderRadius: '12px', border: '1px solid #ebeef5', display: 'flex', flexDirection: 'column', padding: '20px', boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
                <div style={{ flex: 1, color: '#999', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
-                 [ 对话记录区域 ]
+                 [ 对话区正在施工中... ]
                </div>
                <div style={{ display: 'flex', gap: '12px', marginTop: '16px' }}>
-                 <input type="text" placeholder="输入你想问的课程问题..." style={{ flex: 1, padding: '12px 16px', borderRadius: '8px', border: '1px solid #d9d9d9', outline: 'none' }} />
+                 <input type="text" placeholder="输入问题..." style={{ flex: 1, padding: '12px 16px', borderRadius: '8px', border: '1px solid #d9d9d9', outline: 'none' }} />
                  <button style={{ padding: '0 24px', backgroundColor: '#1677ff', color: '#fff', border: 'none', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer' }}>发送</button>
                </div>
              </div>
            </div>
           )}
-
         </div>
       </div>
     </div>
