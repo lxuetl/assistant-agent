@@ -1,5 +1,5 @@
 #这是后端数据库
-from sqlalchemy import create_engine, Column, Integer, String, Boolean, DateTime, Text
+from sqlalchemy import create_engine, Column, Integer, String, Boolean, DateTime, Text, JSON
 from sqlalchemy.orm import declarative_base, sessionmaker
 import datetime
 
@@ -26,7 +26,7 @@ class QuizRecord(Base):
     platform = Column(String, default="web")
     id = Column(Integer, primary_key=True, index=True)
     question = Column(Text, nullable=False)           # 题干
-    options = Column(Text, nullable=True) #选项内容
+    options = Column(Text, nullable=True)             # 选项内容
     user_choice = Column(String(10), nullable=False)  # 用户选了什么 (A/B/C/D)
     correct_answer = Column(String(10), nullable=False)# 正确答案是什么
     is_correct = Column(Boolean, default=False)       # 是否做对了
@@ -43,6 +43,16 @@ class ChatHistory(Base):
     role = Column(String(50), nullable=False)         # 角色: user 或 ai
     content = Column(Text, nullable=False)            # 聊天内容
     created_at = Column(DateTime, default=datetime.datetime.utcnow) # 聊天时间
+
+# 🌟 新增：千人千面数据底座 —— 学生个体成绩表
+class StudentScore(Base):
+    """学生成绩表（存储解析后的 Excel 个体数据）"""
+    __tablename__ = "student_scores"
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(String, index=True)               # 学号，用来让前端精准匹配
+    student_name = Column(String)                      # 姓名
+    course_id = Column(String, default="default_course")
+    score_data = Column(JSON)                          # 🌟 核心魔法：用 JSON 存不固定的科目和分数！
 
 # ==========================================
 # 3. 自动建表引擎
