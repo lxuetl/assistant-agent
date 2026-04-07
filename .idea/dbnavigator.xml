@@ -52,7 +52,10 @@
     <last-used-providers />
   </component>
   <component name="DBNavigator.Project.DatabaseFileManager">
-    <open-files />
+    <open-files>
+      <object connection-id="f7988c0d-f80f-4358-862b-88b2c65f1b81" object-ref="schemas/a25_data/tables/chat_histories" />
+      <object connection-id="f7988c0d-f80f-4358-862b-88b2c65f1b81" object-ref="schemas/a25_data/tables/quiz_records" />
+    </open-files>
   </component>
   <component name="DBNavigator.Project.DatabasePrerequisiteManager">
     <prerequisites />
@@ -63,6 +66,7 @@
   </component>
   <component name="DBNavigator.Project.DatasetFilterManager">
     <filter-actions connection-id="f7988c0d-f80f-4358-862b-88b2c65f1b81" dataset="a25_data.chat_histories" active-filter-id="EMPTY_FILTER" />
+    <filter-actions connection-id="f7988c0d-f80f-4358-862b-88b2c65f1b81" dataset="a25_data.student_scores" active-filter-id="" />
     <filter-actions connection-id="f7988c0d-f80f-4358-862b-88b2c65f1b81" dataset="a25_data.quiz_records" active-filter-id="EMPTY_FILTER" />
   </component>
   <component name="DBNavigator.Project.ExecutionManager">

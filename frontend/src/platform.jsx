@@ -43,6 +43,11 @@ export default function UserPortal() {
   const chatEndRef = useRef(null);
   const [hasPromptedWeakness, setHasPromptedWeakness] = useState(false);
 
+  // 🌟 新增：Agent 任务产出物状态与下载状态
+  const [generatedDoc, setGeneratedDoc] = useState('');
+  const [showDocPreview, setShowDocPreview] = useState(false);
+  const [isDownloading, setIsDownloading] = useState(false);
+
   // 1. 自动滚动到最新消息
   useEffect(() => {
     if (activeTab === 'agent' && chatEndRef.current) {
@@ -50,7 +55,7 @@ export default function UserPortal() {
     }
   }, [messages, activeTab, isChatting]);
 
-  // 2. 🌟 核心拦截器：学生一登录，就去后端真正的数据库里取分！
+  // 2. 核心拦截器：学生一登录，就去后端真正的数据库里取分！
   useEffect(() => {
     if (isLoggedIn && role === 'student' && accountId) {
       fetch(`http://localhost:8000/api/my_score?account_id=${accountId}`)
@@ -68,7 +73,7 @@ export default function UserPortal() {
     }
   }, [isLoggedIn, role, accountId]);
 
-  // 3. 🌟 终极杀招：千人千面的真实学情联动闭环
+  // 3. 终极杀招：千人千面的真实学情联动闭环
   useEffect(() => {
     // 动态决定依据：学生看个人最弱，老师看全班最弱
     const targetWeakest = role === 'student' ? myScoreData.weakest : classData.weakest;
@@ -78,13 +83,11 @@ export default function UserPortal() {
       let proactiveMessage = {};
 
       if (role === 'student') {
-        // 👨‍🎓 学生视角：基于数据库真实数据推送练习
         proactiveMessage = {
           role: 'assistant',
           content: `🚨 【个人学情诊断】\n${targetName}，系统底层调取了你在数据库的成绩画像，发现你在《${targetWeakest}》模块存在明显薄弱环节。\n\n作为你的专属AI助教，我已经为你调取了该知识点的核心考纲。需要我立刻为你出两道针对性的实战题练练手吗？💪`
         };
       } else {
-        // 👩‍🏫 教师视角：辅助教研
         proactiveMessage = {
           role: 'assistant',
           content: `📊 【班级学情诊断报告】\n${targetName}，系统已完成当前班级成绩单的深度挖掘。数据显示，全班在《${targetWeakest}》模块存在集体性的知识薄弱。\n\n💡 智能教学干预建议：\n1. 建议在下节课安排 15-20 分钟的专项复习。\n2. 是否需要我为您一键生成针对该薄弱点的【补救教案】或【专项随堂测验】发放给学生？`
@@ -107,6 +110,12 @@ export default function UserPortal() {
     setMessages([...newMessages, { role: 'assistant', content: '' }]);
     setInputText('');
     setIsChatting(true);
+
+    // 如果之前有卡片，发新消息时先关掉
+    if (showDocPreview) {
+      setShowDocPreview(false);
+      setGeneratedDoc('');
+    }
 
     try {
       const res = await fetch('http://localhost:8000/api/chat', {
@@ -138,12 +147,33 @@ export default function UserPortal() {
           const chunk = decoder.decode(value, { stream: true });
           aiFullReply += chunk;
 
-          // 动态将大模型吐出的字更新到最后一个气泡中
-          setMessages(prev => {
-            const updatedMessages = [...prev];
-            updatedMessages[updatedMessages.length - 1].content = aiFullReply;
-            return updatedMessages;
-          });
+          // 🌟 核心拦截引擎：实时剥离文档内容并渲染到右侧浮窗
+          if (aiFullReply.includes('<<<PLAN_START>>>')) {
+            const parts = aiFullReply.split('<<<PLAN_START>>>');
+            const chatDisplay = parts[0];
+
+            // 提取文档内容（如果有结束符则截断，否则实时展示中间部分）
+            let docContent = parts[1];
+            if (aiFullReply.includes('<<<PLAN_END>>>')) {
+              docContent = parts[1].split('<<<PLAN_END>>>')[0];
+            }
+
+            setGeneratedDoc(docContent);
+            setShowDocPreview(true);
+
+            setMessages(prev => {
+              const updated = [...prev];
+              updated[updated.length - 1].content = chatDisplay.trim() + "\n\n(📄 智能文档正在右侧工作区生成中...)";
+              return updated;
+            });
+          } else {
+            // 普通对话
+            setMessages(prev => {
+              const updated = [...prev];
+              updated[updated.length - 1].content = aiFullReply;
+              return updated;
+            });
+          }
         }
       }
     } catch (err) {
@@ -156,6 +186,36 @@ export default function UserPortal() {
       });
     } finally {
       setIsChatting(false);
+    }
+  };
+
+  // 🌟 5. 新增：请求后端把文本打成真正的 Word 文件并触发真实下载
+  const handleDownloadDoc = async () => {
+    if (!generatedDoc || isDownloading) return;
+    setIsDownloading(true);
+    try {
+      const res = await fetch('http://localhost:8000/api/export_doc', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ content: generatedDoc })
+      });
+
+      if (!res.ok) throw new Error("下载请求失败");
+
+      // 将后端传回的二进制流转换为 Blob 并触发浏览器本地下载
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'A25_智能教研产出物.docx';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (err) {
+      alert("❌ 导出 Word 失败，请检查后端是否配置了导出接口。");
+    } finally {
+      setIsDownloading(false);
     }
   };
 
@@ -195,7 +255,6 @@ export default function UserPortal() {
 
             <div style={{ marginBottom: '16px' }}>
               <div style={{ fontSize: '13px', color: '#666', marginBottom: '8px', fontWeight: 'bold' }}>账号</div>
-              {/* 🌟 核心双向绑定：真实连接 accountId */}
               <input
                 type="text"
                 value={accountId}
@@ -256,12 +315,13 @@ export default function UserPortal() {
             onClick={() => {
               setIsLoggedIn(false);
               setRole('student');
-              // 退出时清空所有的痕迹，模拟真实的重新登录
               setAccountId('');
               setHasPromptedWeakness(false);
               setClassData({ radar: [], bar: [], weakest: '', total: 0 });
               setMyScoreData({ radar: [], weakest: '', name: '' });
-              setMessages([{ role: 'assistant', content: '你好！我是 A25 智能助教 🤖。系统检测到你最近的学习状态不错，今天遇到什么难题了吗？（你可以直接向我提问，或者让我帮你总结知识点）' }]);
+              setMessages([{ role: 'assistant', content: '你好！我是 A25 智能助教 🤖。系统检测到你最近的学习状态不错，今天遇到什么难题了吗？' }]);
+              setShowDocPreview(false);
+              setGeneratedDoc('');
             }}
             style={{ width: '100%', padding: '8px 0', backgroundColor: '#fff', border: '1px solid #ff4d4f', color: '#ff4d4f', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold', transition: 'all 0.2s' }}
             onMouseOver={(e) => { e.target.style.backgroundColor = '#fff1f0' }}
@@ -292,8 +352,6 @@ export default function UserPortal() {
           {/* 🌟 学情大屏 */}
           {activeTab === 'report' && (
              <div style={{ animation: 'fadeIn 0.4s', maxWidth: '1000px' }}>
-
-               {/* 👨‍🎓 学生视角：绑定真实数据库的 myScoreData */}
                {role === 'student' && (
                  <>
                    <h2 style={{ margin: '0 0 24px 0', color: '#333', display: 'flex', alignItems: 'center' }}>
@@ -325,7 +383,6 @@ export default function UserPortal() {
                  </>
                )}
 
-               {/* 👩‍🏫 教师视角：保持原有大盘功能 */}
                {role === 'teacher' && (
                  <>
                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: '24px' }}>
@@ -540,69 +597,112 @@ export default function UserPortal() {
 
           {/* 🌟 完整的气泡聊天 UI */}
           {activeTab === 'agent' && (
-             <div style={{ animation: 'fadeIn 0.3s', display: 'flex', flexDirection: 'column', height: 'calc(100vh - 150px)', maxWidth: '800px', margin: '0 auto' }}>
-             <h2 style={{ margin: '0 0 16px 0', color: '#333' }}>专属 AI 辅导空间</h2>
+             <div style={{ animation: 'fadeIn 0.3s', display: 'flex', position: 'relative', height: 'calc(100vh - 150px)', maxWidth: '800px', margin: '0 auto' }}>
 
-             <div style={{ backgroundColor: '#fff', flex: 1, borderRadius: '12px', border: '1px solid #ebeef5', display: 'flex', flexDirection: 'column', padding: '20px', boxShadow: '0 4px 16px rgba(0,0,0,0.05)', overflow: 'hidden' }}>
+             {/* 左侧：专属 AI 辅导空间 */}
+             <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
+               <h2 style={{ margin: '0 0 16px 0', color: '#333' }}>专属 AI 辅导空间</h2>
 
-               <div style={{ flex: 1, overflowY: 'auto', paddingRight: '10px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
-                 {messages.map((msg, idx) => (
-                   <div key={idx} style={{ display: 'flex', justifyContent: msg.role === 'user' ? 'flex-end' : 'flex-start' }}>
-                     {/* 机器人头像 */}
-                     {msg.role === 'assistant' && <div style={{ width: '32px', height: '32px', borderRadius: '50%', backgroundColor: '#e6f4ff', display: 'flex', justifyContent: 'center', alignItems: 'center', marginRight: '12px', fontSize: '18px', flexShrink: 0 }}>🤖</div>}
+               <div style={{ backgroundColor: '#fff', flex: 1, borderRadius: '12px', border: '1px solid #ebeef5', display: 'flex', flexDirection: 'column', padding: '20px', boxShadow: '0 4px 16px rgba(0,0,0,0.05)', overflow: 'hidden' }}>
 
-                     {/* 气泡内容 */}
-                     <div style={{
-                       maxWidth: '75%',
-                       padding: '12px 16px',
-                       borderRadius: msg.role === 'user' ? '16px 0 16px 16px' : '0 16px 16px 16px',
-                       backgroundColor: msg.role === 'user' ? '#1677ff' : '#f5f7fa',
-                       color: msg.role === 'user' ? '#fff' : '#333',
-                       lineHeight: '1.6',
-                       fontSize: '15px',
-                       boxShadow: '0 2px 4px rgba(0,0,0,0.02)',
-                       whiteSpace: 'pre-wrap'
-                     }}>
-                       {msg.content}
+                 <div style={{ flex: 1, overflowY: 'auto', paddingRight: '10px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                   {messages.map((msg, idx) => (
+                     <div key={idx} style={{ display: 'flex', justifyContent: msg.role === 'user' ? 'flex-end' : 'flex-start' }}>
+                       {msg.role === 'assistant' && <div style={{ width: '32px', height: '32px', borderRadius: '50%', backgroundColor: '#e6f4ff', display: 'flex', justifyContent: 'center', alignItems: 'center', marginRight: '12px', fontSize: '18px', flexShrink: 0 }}>🤖</div>}
+
+                       <div style={{
+                         maxWidth: '75%',
+                         padding: '12px 16px',
+                         borderRadius: msg.role === 'user' ? '16px 0 16px 16px' : '0 16px 16px 16px',
+                         backgroundColor: msg.role === 'user' ? '#1677ff' : '#f5f7fa',
+                         color: msg.role === 'user' ? '#fff' : '#333',
+                         lineHeight: '1.6',
+                         fontSize: '15px',
+                         boxShadow: '0 2px 4px rgba(0,0,0,0.02)',
+                         whiteSpace: 'pre-wrap'
+                       }}>
+                         {msg.content}
+                       </div>
+
+                       {msg.role === 'user' && <div style={{ width: '32px', height: '32px', borderRadius: '50%', backgroundColor: '#1677ff', color: '#fff', display: 'flex', justifyContent: 'center', alignItems: 'center', marginLeft: '12px', fontSize: '14px', flexShrink: 0 }}>{role === 'student' ? (myScoreData.name ? myScoreData.name[0] : '李') : '王'}</div>}
                      </div>
+                   ))}
 
-                     {/* 用户头像 */}
-                     {msg.role === 'user' && <div style={{ width: '32px', height: '32px', borderRadius: '50%', backgroundColor: '#1677ff', color: '#fff', display: 'flex', justifyContent: 'center', alignItems: 'center', marginLeft: '12px', fontSize: '14px', flexShrink: 0 }}>{role === 'student' ? (myScoreData.name ? myScoreData.name[0] : '李') : '王'}</div>}
-                   </div>
-                 ))}
-
-                 {isChatting && (
-                   <div style={{ display: 'flex', justifyContent: 'flex-start', animation: 'pulse 1.5s infinite' }}>
-                     <div style={{ width: '32px', height: '32px', borderRadius: '50%', backgroundColor: '#e6f4ff', display: 'flex', justifyContent: 'center', alignItems: 'center', marginRight: '12px', fontSize: '18px', flexShrink: 0 }}>🤖</div>
-                     <div style={{ padding: '12px 16px', borderRadius: '0 16px 16px 16px', backgroundColor: '#f5f7fa', color: '#999', fontSize: '14px' }}>
-                       正在高速思考中... ⚡
+                   {isChatting && (
+                     <div style={{ display: 'flex', justifyContent: 'flex-start', animation: 'pulse 1.5s infinite' }}>
+                       <div style={{ width: '32px', height: '32px', borderRadius: '50%', backgroundColor: '#e6f4ff', display: 'flex', justifyContent: 'center', alignItems: 'center', marginRight: '12px', fontSize: '18px', flexShrink: 0 }}>🤖</div>
+                       <div style={{ padding: '12px 16px', borderRadius: '0 16px 16px 16px', backgroundColor: '#f5f7fa', color: '#999', fontSize: '14px' }}>
+                         正在高速思考中... ⚡
+                       </div>
                      </div>
-                   </div>
-                 )}
-                 <div ref={chatEndRef} />
-               </div>
+                   )}
+                   <div ref={chatEndRef} />
+                 </div>
 
-               {/* 输入发送区 */}
-               <div style={{ display: 'flex', gap: '12px', marginTop: '16px', borderTop: '1px solid #ebeef5', paddingTop: '20px' }}>
-                 <input
-                   type="text"
-                   value={inputText}
-                   onChange={(e) => setInputText(e.target.value)}
-                   onKeyPress={(e) => e.key === 'Enter' && handleSendMessage()}
-                   placeholder="输入你的问题，按回车键发送..."
-                   style={{ flex: 1, padding: '14px 16px', borderRadius: '8px', border: '1px solid #d9d9d9', outline: 'none', fontSize: '15px', transition: 'border 0.3s' }}
-                   onFocus={(e) => e.target.style.borderColor = '#1677ff'}
-                   onBlur={(e) => e.target.style.borderColor = '#d9d9d9'}
-                 />
-                 <button
-                   disabled={!inputText.trim() || isChatting}
-                   onClick={handleSendMessage}
-                   style={{ padding: '0 32px', backgroundColor: inputText.trim() && !isChatting ? '#1677ff' : '#ccc', color: '#fff', border: 'none', borderRadius: '8px', fontWeight: 'bold', fontSize: '15px', cursor: inputText.trim() && !isChatting ? 'pointer' : 'not-allowed', transition: 'all 0.3s' }}
-                 >
-                   发 送
-                 </button>
+                 {/* 输入发送区 */}
+                 <div style={{ display: 'flex', gap: '12px', marginTop: '16px', borderTop: '1px solid #ebeef5', paddingTop: '20px' }}>
+                   <input
+                     type="text"
+                     value={inputText}
+                     onChange={(e) => setInputText(e.target.value)}
+                     onKeyPress={(e) => e.key === 'Enter' && handleSendMessage()}
+                     placeholder="输入你的问题，按回车键发送..."
+                     style={{ flex: 1, padding: '14px 16px', borderRadius: '8px', border: '1px solid #d9d9d9', outline: 'none', fontSize: '15px', transition: 'border 0.3s' }}
+                     onFocus={(e) => e.target.style.borderColor = '#1677ff'}
+                     onBlur={(e) => e.target.style.borderColor = '#d9d9d9'}
+                   />
+                   <button
+                     disabled={!inputText.trim() || isChatting}
+                     onClick={handleSendMessage}
+                     style={{ padding: '0 32px', backgroundColor: inputText.trim() && !isChatting ? '#1677ff' : '#ccc', color: '#fff', border: 'none', borderRadius: '8px', fontWeight: 'bold', fontSize: '15px', cursor: inputText.trim() && !isChatting ? 'pointer' : 'not-allowed', transition: 'all 0.3s' }}
+                   >
+                     发 送
+                   </button>
+                 </div>
                </div>
              </div>
+
+             {/* 🌟 右侧：智能文档实时生成与预览悬浮窗 */}
+             {showDocPreview && generatedDoc && (
+                <div style={{
+                  position: 'absolute', left: '105%', top: '0', width: '400px', height: '100%',
+                  backgroundColor: '#fff', borderRadius: '12px', boxShadow: '0 8px 32px rgba(0,0,0,0.15)',
+                  border: '1px solid #1677ff', zIndex: 100, display: 'flex', flexDirection: 'column',
+                  animation: 'fadeIn 0.4s ease-out'
+                }}>
+                  <div style={{ padding: '16px 20px', borderBottom: '1px solid #eee', display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#e6f4ff', borderRadius: '12px 12px 0 0' }}>
+                    <div style={{ display: 'flex', alignItems: 'center' }}>
+                      <span style={{ fontSize: '20px', marginRight: '8px' }}>📄</span>
+                      <strong style={{ color: '#1677ff', fontSize: '16px' }}>A25 智能教研产出物</strong>
+                    </div>
+                    <button onClick={() => setShowDocPreview(false)} style={{ border: 'none', background: 'none', cursor: 'pointer', fontSize: '22px', color: '#999' }}>×</button>
+                  </div>
+
+                  {/* 文档内容展示区 */}
+                  <div style={{ padding: '24px', overflowY: 'auto', flex: 1, fontSize: '14px', lineHeight: '1.8', color: '#333', whiteSpace: 'pre-wrap', backgroundColor: '#fafafa' }}>
+                    {generatedDoc}
+                  </div>
+
+                  {/* 操作区 */}
+                  <div style={{ padding: '16px 24px', borderTop: '1px solid #eee', backgroundColor: '#fff', borderRadius: '0 0 12px 12px' }}>
+                    <button
+                      onClick={handleDownloadDoc}
+                      disabled={isDownloading}
+                      style={{
+                        width: '100%', padding: '12px',
+                        backgroundColor: isDownloading ? '#95de64' : '#52c41a',
+                        color: '#fff', border: 'none', borderRadius: '8px',
+                        fontWeight: 'bold', fontSize: '15px',
+                        cursor: isDownloading ? 'not-allowed' : 'pointer',
+                        boxShadow: '0 4px 12px rgba(82,196,26,0.3)',
+                        transition: 'all 0.3s'
+                      }}
+                    >
+                      {isDownloading ? '⏳ 正在云端渲染 Word 并下载...' : '📥 一键导出排版 Word 文档'}
+                    </button>
+                  </div>
+                </div>
+              )}
            </div>
           )}
 

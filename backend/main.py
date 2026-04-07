@@ -72,6 +72,9 @@ class HomeworkRequest(BaseModel):
     content_type: str
     content: str
 
+# 🌟 新增：接收要导出为 Word 的内容
+class ExportDocRequest(BaseModel):
+    content: str
 # ==========================================
 # 🌟 API 路由区
 # ==========================================
@@ -414,6 +417,57 @@ async def get_my_score(account_id: str, db: Session = Depends(get_db)):
         "radar_data": my_radar,
         "weakest_subject": my_weakest
     }
+
+
+# ==========================================
+# 🌟 新增：一键导出精排版 Word 文档接口
+# ==========================================
+@app.post("/api/export_doc")
+async def export_doc_endpoint(request: ExportDocRequest):
+    print("📄 [文档导出] 正在将 AI 教研成果渲染为 Word 文档...")
+    try:
+        # 创建一个新的 Word 文档对象
+        doc = docx.Document()
+
+        # 添加大标题
+        doc.add_heading('A25 智能教研产出物', level=0)
+
+        # 简单解析 Markdown 的基础语法进行 Word 排版
+        for line in request.content.split('\n'):
+            line = line.strip()
+            if not line:
+                continue
+
+            if line.startswith('# '):
+                doc.add_heading(line[2:], level=1)
+            elif line.startswith('## '):
+                doc.add_heading(line[3:], level=2)
+            elif line.startswith('### '):
+                doc.add_heading(line[4:], level=3)
+            elif line.startswith('- ') or line.startswith('* '):
+                doc.add_paragraph(line[2:], style='List Bullet')
+            else:
+                doc.add_paragraph(line)
+
+        # 把生成的 Word 保存到内存中的二进制流
+        output_stream = io.BytesIO()
+        doc.save(output_stream)
+        output_stream.seek(0)
+
+        # 设置让浏览器触发下载的响应头
+        headers = {
+            'Content-Disposition': 'attachment; filename="A25_Smart_Plan.docx"'
+        }
+
+        # 返回文件流
+        return StreamingResponse(
+            output_stream,
+            media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            headers=headers
+        )
+    except Exception as e:
+        print(f"❌ 导出文档失败: {e}")
+        raise HTTPException(status_code=500, detail="生成文档失败")
 
 if __name__ == "__main__":
     import uvicorn
