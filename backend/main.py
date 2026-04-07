@@ -10,7 +10,10 @@ import docx
 import fitz
 import io
 import pandas as pd
-
+import json
+import re
+import aiofiles
+import os
 # 🌟 针对 PDF 扫描件 OCR 兜底新增的导入
 import base64
 from langchain_openai import ChatOpenAI
@@ -19,7 +22,7 @@ from langchain_core.messages import HumanMessage
 from agent_service import A25Agent
 # 🌟 新增引入了 engine 和 Base 用于自动建表
 from database import get_db, QuizRecord, ChatHistory, StudentScore, SessionLocal, engine, Base
-
+from vector_store import build_vector_store
 # 1. 初始化应用和 Agent
 app = FastAPI(title="A25 Agent API")
 
@@ -424,7 +427,7 @@ async def get_my_score(account_id: str, db: Session = Depends(get_db)):
 # ==========================================
 @app.post("/api/export_doc")
 async def export_doc_endpoint(request: ExportDocRequest):
-    print("📄 [文档导出] 正在将 AI 教研成果渲染为 Word 文档...")
+    print(" [文档导出] 正在将 AI 教研成果渲染为 Word 文档...")
     try:
         # 创建一个新的 Word 文档对象
         doc = docx.Document()
@@ -466,8 +469,36 @@ async def export_doc_endpoint(request: ExportDocRequest):
             headers=headers
         )
     except Exception as e:
-        print(f"❌ 导出文档失败: {e}")
+        print(f" 导出文档失败: {e}")
         raise HTTPException(status_code=500, detail="生成文档失败")
+
+
+@app.post("/api/upload_knowledge")
+async def upload_knowledge_endpoint(file: UploadFile = File(...)):
+    print(f"📚 [知识库入库] 收到前端上传的课件: {file.filename}")
+    if not file.filename.lower().endswith(".pdf"):
+        return JSONResponse(status_code=400, content={"error": "目前知识库仅支持上传 PDF 格式课件"})
+
+    try:
+        # 1. 确保 docs 目录存在
+        os.makedirs("./docs", exist_ok=True)
+        file_path = f"docs/{file.filename}"
+
+        # 2. 将前端传来的文件异步保存到本地
+        async with aiofiles.open(file_path, 'wb') as out_file:
+            content = await file.read()
+            await out_file.write(content)
+
+        # 3. 🌟 优雅调用！把业务逻辑彻底交还给专门的服务层！
+        # 直接把刚才存好的相对路径传给你写好的函数
+        build_vector_store(file_path)
+
+        print(f"🎉 [知识库入库] {file.filename} 已通过专属通道向量化成功！")
+        return {"status": "success", "message": f"成功将课件注入 AI 大脑！"}
+
+    except Exception as e:
+        print(f"❌ [知识库入库失败]: {e}")
+        return JSONResponse(status_code=500, content={"error": f"知识库处理失败: {str(e)}"})
 
 if __name__ == "__main__":
     import uvicorn
