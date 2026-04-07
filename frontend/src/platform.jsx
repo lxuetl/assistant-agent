@@ -96,12 +96,15 @@ export default function UserPortal() {
     }
   }, [activeTab, myScoreData.weakest, classData.weakest, hasPromptedWeakness, role, myScoreData.name]);
 
-  // 4. 发送消息核心逻辑
+  // 4. 发送消息核心逻辑 (完美适配后端 StreamingResponse)
   const handleSendMessage = async () => {
     if (!inputText.trim() || isChatting) return;
 
-    const newMessages = [...messages, { role: 'user', content: inputText }];
-    setMessages(newMessages);
+    const userText = inputText;
+    const newMessages = [...messages, { role: 'user', content: userText }];
+
+    // 先把用户的话上屏，同时追加一个空的 AI 气泡，用来“接”流式输出的字
+    setMessages([...newMessages, { role: 'assistant', content: '' }]);
     setInputText('');
     setIsChatting(true);
 
@@ -116,14 +119,41 @@ export default function UserPortal() {
           platform: 'web'
         })
       });
-      const data = await res.json();
-      if (data.status === 'success') {
-        setMessages([...newMessages, { role: 'assistant', content: data.reply }]);
-      } else {
-        setMessages([...newMessages, { role: 'assistant', content: '抱歉，我的大脑好像短路了，请稍后再试。' }]);
+
+      if (!res.ok) throw new Error("网络请求失败");
+      if (!res.body) throw new Error("当前浏览器不支持ReadableStream");
+
+      // 🌟 核心魔法：开启流式读取管道
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder('utf-8');
+      let done = false;
+      let aiFullReply = '';
+
+      // 循环读取后端吐出的每一个数据块
+      while (!done) {
+        const { value, done: readerDone } = await reader.read();
+        done = readerDone;
+        if (value) {
+          // 解码数据块
+          const chunk = decoder.decode(value, { stream: true });
+          aiFullReply += chunk;
+
+          // 动态将大模型吐出的字更新到最后一个气泡中
+          setMessages(prev => {
+            const updatedMessages = [...prev];
+            updatedMessages[updatedMessages.length - 1].content = aiFullReply;
+            return updatedMessages;
+          });
+        }
       }
     } catch (err) {
-      setMessages([...newMessages, { role: 'assistant', content: '❌ 网络连接失败，请检查 FastAPI 后端是否正常运行。' }]);
+      console.error(err);
+      // 错误回退处理
+      setMessages(prev => {
+        const updatedMessages = [...prev];
+        updatedMessages[updatedMessages.length - 1].content = '❌ 神经网络连接波动，请检查 FastAPI 后端或大模型密钥是否正常。';
+        return updatedMessages;
+      });
     } finally {
       setIsChatting(false);
     }

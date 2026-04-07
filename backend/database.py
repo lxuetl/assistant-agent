@@ -8,7 +8,7 @@ SQLALCHEMY_DATABASE_URL = "sqlite:///./a25_data.db"
 
 # connect_args={"check_same_thread": False} 是 SQLite 在 FastAPI 中使用的必备设置
 engine = create_engine(
-    SQLALCHEMY_DATABASE_URL, connect_args={"check_same_thread": False}
+    SQLALCHEMY_DATABASE_URL, connect_args={"check_same_thread": False, "timeout": 15}
 )
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)

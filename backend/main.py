@@ -17,10 +17,14 @@ from langchain_openai import ChatOpenAI
 from langchain_core.messages import HumanMessage
 
 from agent_service import A25Agent
-from database import get_db, QuizRecord, ChatHistory, StudentScore
+# 🌟 新增引入了 engine 和 Base 用于自动建表
+from database import get_db, QuizRecord, ChatHistory, StudentScore, SessionLocal, engine, Base
 
 # 1. 初始化应用和 Agent
 app = FastAPI(title="A25 Agent API")
+
+# 👇 🌟 核心便捷补丁：每次启动时自动检查并创建缺失的表，再也不用手动跑 database.py 了！
+Base.metadata.create_all(bind=engine)
 
 # 2. 配置跨域 (合并了你之前的两次跨域配置，保留最宽松的设置以防被拦截)
 app.add_middleware(
@@ -72,33 +76,35 @@ class HomeworkRequest(BaseModel):
 # 🌟 API 路由区
 # ==========================================
 
-# 4. 路由：核心流式接口 (完美保留原逻辑，仅微调参数名)
+# 4. 路由：核心流式接口 (终极完美解法：手动控制生命周期，彻底切断死锁)
 @app.post("/api/chat")
-async def chat_endpoint(request: ChatRequest, db: Session = Depends(get_db)):
+async def chat_endpoint(request: ChatRequest): # 🌟 核心改动：去掉了 db: Session = Depends(get_db)
     # 确保前端传来的数组不为空
     if not request.messages:
         raise HTTPException(status_code=400, detail="Messages cannot be empty")
 
-    # 🌟 提取最后一条用户发来的消息
     current_message = request.messages[-1].content
     if not current_message.strip():
         raise HTTPException(status_code=400, detail="Message cannot be empty")
 
     print(f"📥 [收到请求] 用户: {request.user_id}, 来源: {request.platform}, 消息: {current_message}")
 
-    # 查询历史记录时，只查当前 user_id 的日记本
-    recent_history = db.query(ChatHistory) \
-        .filter(ChatHistory.user_id == request.user_id) \
-        .order_by(desc(ChatHistory.id)) \
-        .limit(10).all()
-    recent_history.reverse()
-
-    history_context = [{"role": h.role, "content": h.content} for h in recent_history]
+    # 🌟 第一步：瞬间开门，读完数据，立刻关门拔钥匙！(彻底释放读锁)
+    db_read = SessionLocal()
+    try:
+        recent_history = db_read.query(ChatHistory) \
+            .filter(ChatHistory.user_id == request.user_id) \
+            .order_by(desc(ChatHistory.id)) \
+            .limit(10).all()
+        recent_history.reverse()
+        history_context = [{"role": h.role, "content": h.content} for h in recent_history]
+    finally:
+        db_read.close() # 🔑 拔出钥匙！此时 SQLite 处于完全无锁的空闲状态
 
     async def stream_and_save():
         full_ai_response = ""
 
-        # 🌟 把 current_message 传给 Agent，原逻辑丝毫不动
+        # 第二步：此时没有任何数据库连接，大模型放心大胆地流式打字耗时几秒钟
         async for chunk in agent.execute_stream(
                 user_input=current_message,
                 page_context=request.page_context,
@@ -109,7 +115,8 @@ async def chat_endpoint(request: ChatRequest, db: Session = Depends(get_db)):
             full_ai_response += chunk
             yield chunk
 
-        # 🌟 保存聊天记录时，同样存 current_message
+        # 🌟 第三步：打字结束后，瞬间开新门，写入数据，再次关门！
+        db_write = SessionLocal()
         try:
             user_record = ChatHistory(
                 user_id=request.user_id,
@@ -125,12 +132,14 @@ async def chat_endpoint(request: ChatRequest, db: Session = Depends(get_db)):
                 role="ai",
                 content=full_ai_response
             )
-            db.add_all([user_record, ai_record])
-            db.commit()
-            print(f"💾 [数据库] 用户 {request.user_id} 的聊天记忆已更新！")
+            db_write.add_all([user_record, ai_record])
+            db_write.commit()
+            print(f"✅ 💾 [数据库] 用户 {request.user_id} 的聊天记忆已极速落盘！")
         except Exception as e:
-            db.rollback()
+            db_write.rollback()
             print(f"❌ [数据库] 聊天记忆保存失败: {e}")
+        finally:
+            db_write.close() # 🔑 再次拔出钥匙！
 
     return StreamingResponse(
         stream_and_save(),
@@ -304,7 +313,7 @@ async def parse_question_file(file: UploadFile = File(...)):
 # 🌟 结构化成绩单数据分析接口 (新增入库功能)
 # ==========================================
 @app.post("/api/analyze_scores")
-async def analyze_scores_endpoint(file: UploadFile = File(...), db: Session = Depends(get_db)):  # 👈 注意这里加了 db
+async def analyze_scores_endpoint(file: UploadFile = File(...), db: Session = Depends(get_db)):
     print(f"📊 [数据分析] 收到成绩单文件: {file.filename}")
     try:
         content = await file.read()
