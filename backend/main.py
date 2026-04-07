@@ -23,6 +23,8 @@ from agent_service import A25Agent
 # 🌟 新增引入了 engine 和 Base 用于自动建表
 from database import get_db, QuizRecord, ChatHistory, StudentScore, SessionLocal, engine, Base
 from vector_store import build_vector_store
+from pydantic import BaseModel
+
 # 1. 初始化应用和 Agent
 app = FastAPI(title="A25 Agent API")
 
@@ -84,6 +86,10 @@ class TargetedPracticeRequest(BaseModel):
     course_id: str
     error_context: str
     suggestion: str = ""
+
+class PromptEnhanceRequest(BaseModel):
+    short_desc: str
+    role: str
 # ==========================================
 # 🌟 API 路由区
 # ==========================================
@@ -533,6 +539,57 @@ async def generate_practice(request: TargetedPracticeRequest):
     except Exception as e:
         print(f"❌ 生成题目失败: {str(e)}")
         return {"status": "error", "message": "题目生成失败，请重试"}
+
+
+@app.post("/api/enhance_prompt")
+async def enhance_prompt(request: PromptEnhanceRequest):
+    print(f"📥 收到提示词扩写请求，原始描述：{request.short_desc}")
+
+    # 构造一个让大模型帮我们写 Prompt 的 Prompt
+    system_instruction = (
+        "你是一位世界顶级的 AI 提示词工程师 (Prompt Engineer)。"
+        "你的任务是把用户简短的一句话描述，扩写成一份高度专业、结构化、能够直接作为 LLM System Prompt 的指令集。\n"
+        "要求：\n"
+        "1. 包含明确的角色设定 (Role)。\n"
+        "2. 设定具体的行为准则和工作流程 (Rules & Workflow)。\n"
+        "3. 设定输出格式要求。\n"
+        "4. 直接输出最终的 Prompt 文本，不要任何废话和前缀说明。"
+    )
+
+    user_input = f"请将这个简短描述扩写成专业提示词：{request.short_desc}"
+
+    try:
+        # 这里替换成你实际调用 Qwen 模型的方法
+        # 比如之前写好的 self.llm.invoke 或者 agent.llm.ainvoke
+        messages = [
+            {"role": "system", "content": system_instruction},
+            {"role": "user", "content": user_input}
+        ]
+
+        # ⚠️ 注意：这里假设你使用的是 langchain 的 invoke 或者自定义的方法
+        # 示例：response = await agent.llm.ainvoke(messages)
+        # 为了演示，此处直接给出一段模拟的扩写结果。实际请接入大模型。
+
+        # ----- 模拟大模型返回结果（替换为真实调用） -----
+        enhanced_result = f"""# 角色设定
+你是一个名为“{request.short_desc[:10]}专家”的高级智能体。你的主要职责是为{'学生' if request.role == 'student' else '老师'}提供精准、专业的辅助。
+
+# 核心准则
+1. 【精准引导】：决不能直接给出最终答案，必须通过反问和提示，引导用户自主思考。
+2. 【知识局限】：所有的回答必须严格基于用户上传的专属知识库内容，严禁在专业问题上产生幻觉。
+3. 【语气设定】：保持专业、鼓励且富有亲和力。
+
+# 工作流
+- 接收到用户请求后，首先进行知识点拆解。
+- 调取检索工具 (Retriever) 查阅相关讲义。
+- 给出结构化的解答或测验。
+"""
+        # ----------------------------------------------
+
+        return {"status": "success", "enhanced_prompt": enhanced_result}
+    except Exception as e:
+        print(f"❌ 扩写失败: {str(e)}")
+        return {"status": "error", "message": str(e)}
 
 if __name__ == "__main__":
     import uvicorn

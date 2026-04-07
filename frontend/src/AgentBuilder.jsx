@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 
-export default function AgentBuilder({ onClose, role }) {
+// 🌟 修改点 1：在这里多接收一个 onSaveSuccess 属性
+export default function AgentBuilder({ onClose, role, onSaveSuccess }) {
   const [formData, setFormData] = useState({
     name: '',
     shortDesc: '',
@@ -8,6 +9,7 @@ export default function AgentBuilder({ onClose, role }) {
     skills: { grading: true, practice: true, webSearch: false }
   });
   const [isEnhancing, setIsEnhancing] = useState(false);
+  const [kbFile, setKbFile] = useState(null);
 
   // 🌟 核心魔法：调用后端 AI 扩写提示词
   const handleEnhancePrompt = async () => {
@@ -34,13 +36,25 @@ export default function AgentBuilder({ onClose, role }) {
     }
   };
 
-  // 模拟保存逻辑
+  // 🌟 修改点 2：把存根数据传给主页面
   const handleSave = () => {
     if (!formData.name || !formData.systemPrompt) {
       alert("请填写完整的名称和提示词设定！");
       return;
     }
-    console.log("准备存入数据库的 Agent 配置:", formData);
+
+    // 组装新智能体的数据包，生成一个唯一ID
+    const newAgent = {
+      id: 'agent_' + Date.now(),
+      name: formData.name,
+      desc: formData.shortDesc,
+      prompt: formData.systemPrompt,
+      kbName: kbFile ? kbFile.name : null // 如果上传了文件，记录文件名
+    };
+
+    // 传给老大哥 UserPortal，让它显示在聊天框上面
+    onSaveSuccess(newAgent);
+
     alert(`🎉 成功创建专属智能体：${formData.name}！系统已自动挂载至大模型底座。`);
     onClose(); // 关闭弹窗
   };
@@ -88,9 +102,30 @@ export default function AgentBuilder({ onClose, role }) {
           {/* 模块二：知识库与技能 */}
           <div style={{ borderTop: '1px dashed #d9d9d9', paddingTop: '20px' }}>
             <div style={{ fontWeight: 'bold', marginBottom: '8px' }}>📚 挂载专属知识库</div>
-            <div style={{ border: '1px dashed #d9d9d9', padding: '20px', textAlign: 'center', borderRadius: '6px', backgroundColor: '#fafafa', cursor: 'pointer', color: '#666' }}>
-              ➕ 点击上传参考文件 (PDF / Word / 笔记截图)
-              <div style={{ fontSize: '12px', marginTop: '4px' }}>系统将自动进行向量切片并存入 ChromaDB</div>
+
+            {/* 🌟 加入了真实的相对定位和透明 input */}
+            <div style={{ position: 'relative', overflow: 'hidden' }}>
+              <div style={{
+                border: '1px dashed #d9d9d9', padding: '20px', textAlign: 'center',
+                borderRadius: '6px', cursor: 'pointer', transition: 'all 0.3s',
+                backgroundColor: kbFile ? '#e6f4ff' : '#fafafa',
+                color: kbFile ? '#1677ff' : '#666'
+              }}>
+                {kbFile ? `✅ 已准备挂载: ${kbFile.name} (点击可更换)` : '➕ 点击上传参考文件 (PDF / Word / 笔记截图)'}
+                <div style={{ fontSize: '12px', marginTop: '4px', color: '#999' }}>系统将自动进行向量切片并存入 ChromaDB</div>
+              </div>
+
+              <input
+                type="file"
+                accept=".pdf,.doc,.docx,.txt,.png,.jpg"
+                onChange={(e) => {
+                  const file = e.target.files[0];
+                  if (file) {
+                    setKbFile(file);
+                  }
+                }}
+                style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', opacity: 0, cursor: 'pointer' }}
+              />
             </div>
           </div>
 

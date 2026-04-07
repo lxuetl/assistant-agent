@@ -1,7 +1,8 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Radar, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip } from 'recharts';
-// 🌟 修正了引入路径，确保 React 能找到同目录下的组件
+// 🌟 引入刚刚写好的组件
 import TargetedPractice from './TargetedPractice';
+import AgentBuilder from './AgentBuilder';
 
 export default function UserPortal() {
   // ==========================================
@@ -42,6 +43,15 @@ export default function UserPortal() {
   const [generatedDoc, setGeneratedDoc] = useState('');
   const [showDocPreview, setShowDocPreview] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
+
+  // ==========================================
+  // 🌟 智能体构建舱控制与列表状态
+  // ==========================================
+  const [showBuilder, setShowBuilder] = useState(false);
+  // 存放所有自定义的智能体
+  const [customAgents, setCustomAgents] = useState([]);
+  // 记录当前正在和哪个智能体聊天 ('default' 代表系统默认，其它则是智能体ID)
+  const [currentChatAgentId, setCurrentChatAgentId] = useState('default');
 
   // 1. 自动滚动到最新消息
   useEffect(() => {
@@ -112,7 +122,8 @@ export default function UserPortal() {
           messages: newMessages,
           user_id: accountId || (role === 'student' ? 'student_001' : 'teacher_001'),
           course_id: 'default_course',
-          platform: 'web'
+          platform: 'web',
+          agent_id: currentChatAgentId
         })
       });
 
@@ -237,7 +248,7 @@ export default function UserPortal() {
   // ==========================================
   return (
     <div style={{ display: 'flex', height: '100vh', width: '100vw', backgroundColor: '#f5f7fa', fontFamily: 'sans-serif' }}>
-      {/* 👈 左侧导航 */}
+      {/* 👈 最左侧的全局大导航 */}
       <div style={{ width: '240px', backgroundColor: '#fff', borderRight: '1px solid #ebeef5', display: 'flex', flexDirection: 'column' }}>
         <div style={{ padding: '24px 20px', fontSize: '20px', fontWeight: 'bold', color: '#1677ff', borderBottom: '1px solid #ebeef5', display: 'flex', alignItems: 'center' }}>
           <span style={{ fontSize: '24px', marginRight: '8px' }}>🎓</span> A25 学习中心
@@ -256,12 +267,24 @@ export default function UserPortal() {
               <div style={{ fontSize: '12px', color: '#999' }}>计算机科学与技术</div>
             </div>
           </div>
+
+          {/* 🌟 召唤智能体构建舱的魔法按钮 */}
+          <button
+            onClick={() => setShowBuilder(true)}
+            style={{ width: '100%', padding: '12px 0', marginBottom: '16px', backgroundImage: 'linear-gradient(135deg, #722ed1 0%, #1677ff 100%)', color: '#fff', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', boxShadow: '0 4px 15px rgba(22,119,255,0.4)', transition: 'transform 0.2s' }}
+            onMouseOver={(e) => e.target.style.transform = 'scale(1.02)'}
+            onMouseOut={(e) => e.target.style.transform = 'scale(1)'}
+          >
+            {role === 'teacher' ? '🛠️ 可视化构建专属助教' : '🔬 创建我的 AI 陪练'}
+          </button>
+
           <button
             onClick={() => {
               setIsLoggedIn(false); setRole('student'); setAccountId(''); setHasPromptedWeakness(false);
               setClassData({ radar: [], bar: [], weakest: '', total: 0 }); setMyScoreData({ radar: [], weakest: '', name: '' });
               setMessages([{ role: 'assistant', content: '你好！我是 A25 智能助教 🤖。系统检测到你最近的学习状态不错，今天遇到什么难题了吗？' }]);
               setShowDocPreview(false); setGeneratedDoc('');
+              setCurrentChatAgentId('default'); setCustomAgents([]);
             }}
             style={{ width: '100%', padding: '8px 0', backgroundColor: '#fff', border: '1px solid #ff4d4f', color: '#ff4d4f', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold', transition: 'all 0.2s' }}
             onMouseOver={(e) => { e.target.style.backgroundColor = '#fff1f0' }} onMouseOut={(e) => { e.target.style.backgroundColor = '#fff' }}
@@ -269,7 +292,7 @@ export default function UserPortal() {
         </div>
       </div>
 
-      {/* 👉 右侧主区 */}
+      {/* 👉 右侧主操作区 */}
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
         <div style={{ height: '64px', backgroundColor: '#fff', borderBottom: '1px solid #ebeef5', display: 'flex', alignItems: 'center', padding: '0 32px', gap: '32px', flexShrink: 0 }}>
           {[{ id: 'report', label: '📊 学情大屏' }, { id: 'grading', label: '📝 智能批改' }, { id: 'agent', label: '🤖 AI 助手' }].map(tab => (
@@ -364,7 +387,6 @@ export default function UserPortal() {
                   <textarea value={questionText} onChange={(e) => setQuestionText(e.target.value)} placeholder="输入原题内容..." style={{ width: '100%', height: '100px', padding: '12px', borderRadius: '8px', border: '1px solid #d9d9d9', resize: 'vertical', outline: 'none' }} />
                 </div>
 
-                {/* 🌟 核心视觉加强区：多模态图片直出预览 */}
                 <div>
                   <div style={{ fontWeight: 'bold', color: '#333', marginBottom: '12px', display: 'flex', alignItems: 'center' }}>
                     <span style={{ width: '24px', height: '24px', backgroundColor: '#1677ff', color: '#fff', borderRadius: '50%', display: 'flex', justifyContent: 'center', alignItems: 'center', marginRight: '8px', fontSize: '14px' }}>2</span>
@@ -390,7 +412,6 @@ export default function UserPortal() {
                       style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', opacity: 0, cursor: 'pointer', zIndex: 10 }}
                     />
 
-                    {/* 🌟 图片渲染逻辑 */}
                     {fileData && fileType === 'image' ? (
                       <div style={{ width: '100%', maxHeight: '300px', display: 'flex', justifyContent: 'center' }}>
                         <img src={fileData} alt="作业预览" style={{ maxWidth: '100%', maxHeight: '300px', objectFit: 'contain', borderRadius: '8px', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }} />
@@ -438,14 +459,11 @@ export default function UserPortal() {
                   <p style={{ fontSize: '16px', color: '#555', backgroundColor: '#f6ffed', padding: '12px 16px', borderRadius: '8px' }}><strong>👨‍🏫 教授点评：</strong>{gradingResult.summary}</p>
                   <h3 style={{ marginTop: '24px', color: '#333', borderBottom: '1px solid #eee', paddingBottom: '8px' }}>📝 细节批注：</h3>
 
-                  {/* 🌟 核心注入点：在每个错误后面动态渲染出题靶点 */}
                   {gradingResult.annotations.map((ann, idx) => (
                     <div key={idx} style={{ marginBottom: '20px', padding: '16px', backgroundColor: '#fffaf0', borderLeft: '4px solid #faad14', borderRadius: '0 8px 8px 0' }}>
                       <div style={{ fontWeight: 'bold', color: '#d46b08', marginBottom: '8px' }}>📍 {ann.location}</div>
                       <div style={{ color: '#cf1322', marginBottom: '8px', fontSize: '14px' }}><strong>❌ 问题：</strong>{ann.explanation}</div>
                       <div style={{ color: '#08979c', fontSize: '14px' }}><strong>💡 建议：</strong>{ann.suggestion}</div>
-
-                      {/* 👇 我们的魔法组件就在这里渲染，并把错误信息传进去 */}
                       <TargetedPractice errorContext={ann.explanation} />
                     </div>
                   ))}
@@ -458,10 +476,47 @@ export default function UserPortal() {
             </div>
           )}
 
-          {/* 🌟 完整的气泡聊天 UI */}
+          {/* 🌟 完整的气泡聊天 UI (重构为深色侧边栏结构) */}
           {activeTab === 'agent' && (
-             <div style={{ animation: 'fadeIn 0.3s', display: 'flex', position: 'relative', height: 'calc(100vh - 150px)', maxWidth: '800px', margin: '0 auto' }}>
-             {/* 左侧：专属 AI 辅导空间 */}
+             <div style={{ animation: 'fadeIn 0.3s', display: 'flex', position: 'relative', height: 'calc(100vh - 150px)', maxWidth: '1100px', margin: '0 auto', gap: '24px' }}>
+
+             {/* 🤖 全新设计：ChatGPT 风格深色左侧边栏 */}
+             <div style={{ width: '240px', backgroundColor: '#202123', borderRadius: '12px', padding: '16px 12px', display: 'flex', flexDirection: 'column', gap: '8px', overflowY: 'auto', boxShadow: '0 4px 16px rgba(0,0,0,0.15)', flexShrink: 0 }}>
+               <div style={{ color: '#8e8ea0', fontSize: '13px', fontWeight: 'bold', marginBottom: '12px', paddingLeft: '8px', marginTop: '8px' }}>🚀 智能体列表</div>
+
+               {/* 默认的 A25 助教 */}
+               <div
+                 onClick={() => {
+                   setCurrentChatAgentId('default');
+                   setMessages([{ role: 'assistant', content: '已切换回 A25 系统默认助教 🤖。' }]);
+                 }}
+                 style={{ padding: '12px 16px', borderRadius: '8px', cursor: 'pointer', backgroundColor: currentChatAgentId === 'default' ? '#343541' : 'transparent', color: '#ececf1', fontWeight: currentChatAgentId === 'default' ? 'bold' : 'normal', display: 'flex', alignItems: 'center', gap: '12px', transition: 'all 0.2s' }}
+                 onMouseOver={(e) => { if(currentChatAgentId !== 'default') e.currentTarget.style.backgroundColor = '#2a2b32'; }}
+                 onMouseOut={(e) => { if(currentChatAgentId !== 'default') e.currentTarget.style.backgroundColor = 'transparent'; }}
+               >
+                 <span style={{ fontSize: '18px' }}>🤖</span>
+                 <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>系统主控 A25</span>
+               </div>
+
+               {/* 动态渲染你自己捏的智能体 */}
+               {customAgents.map(agent => (
+                 <div
+                   key={agent.id}
+                   onClick={() => {
+                     setCurrentChatAgentId(agent.id);
+                     setMessages([{ role: 'assistant', content: `已切换至专属助教：【${agent.name}】。${agent.kbName ? `\n📚 已挂载知识库: ${agent.kbName}` : ''}` }]);
+                   }}
+                   style={{ padding: '12px 16px', borderRadius: '8px', cursor: 'pointer', backgroundColor: currentChatAgentId === agent.id ? '#343541' : 'transparent', color: '#ececf1', fontWeight: currentChatAgentId === agent.id ? 'bold' : 'normal', display: 'flex', alignItems: 'center', gap: '12px', transition: 'all 0.2s' }}
+                   onMouseOver={(e) => { if(currentChatAgentId !== agent.id) e.currentTarget.style.backgroundColor = '#2a2b32'; }}
+                   onMouseOut={(e) => { if(currentChatAgentId !== agent.id) e.currentTarget.style.backgroundColor = 'transparent'; }}
+                 >
+                   <span style={{ fontSize: '18px' }}>🔬</span>
+                   <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{agent.name}</span>
+                 </div>
+               ))}
+             </div>
+
+             {/* 右侧：专属 AI 辅导空间 (聊天面板) */}
              <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
                  <h2 style={{ margin: 0, color: '#333' }}>专属 AI 辅导空间</h2>
@@ -479,7 +534,6 @@ export default function UserPortal() {
                          const file = e.target.files[0];
                          if (!file) return;
 
-                         // 可以自己加个 isUploading 状态做 loading 动画，这里暂用简单 alert 提示
                          alert("⏳ 正在将课件传输至后端并进行向量化切割，请稍候大约 10-20 秒...");
 
                          const formData = new FormData();
@@ -498,13 +552,14 @@ export default function UserPortal() {
                          } catch (err) {
                            alert("❌ 网络请求失败，请检查后端状态。");
                          }
-                         e.target.value = null; // 清空 input 允许重复传同名文件
+                         e.target.value = null;
                        }}
                        style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', opacity: 0, cursor: 'pointer' }}
                      />
                    </div>
                  )}
                </div>
+
                <div style={{ backgroundColor: '#fff', flex: 1, borderRadius: '12px', border: '1px solid #ebeef5', display: 'flex', flexDirection: 'column', padding: '20px', boxShadow: '0 4px 16px rgba(0,0,0,0.05)', overflow: 'hidden' }}>
                  <div style={{ flex: 1, overflowY: 'auto', paddingRight: '10px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
                    {messages.map((msg, idx) => (
@@ -530,7 +585,7 @@ export default function UserPortal() {
                </div>
              </div>
 
-             {/* 🌟 右侧：智能文档实时生成与预览悬浮窗 */}
+             {/* 🌟 右侧极悬浮窗：智能文档预览 (不受布局变动影响) */}
              {showDocPreview && generatedDoc && (
                 <div style={{ position: 'absolute', left: '105%', top: '0', width: '400px', height: '100%', backgroundColor: '#fff', borderRadius: '12px', boxShadow: '0 8px 32px rgba(0,0,0,0.15)', border: '1px solid #1677ff', zIndex: 100, display: 'flex', flexDirection: 'column', animation: 'fadeIn 0.4s ease-out' }}>
                   <div style={{ padding: '16px 20px', borderBottom: '1px solid #eee', display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#e6f4ff', borderRadius: '12px 12px 0 0' }}>
@@ -550,6 +605,20 @@ export default function UserPortal() {
 
         </div>
       </div>
+
+      {/* 🌟 核心新功能：可视化智能体构建舱弹窗 */}
+      {showBuilder && (
+        <AgentBuilder
+          role={role}
+          onClose={() => setShowBuilder(false)}
+          onSaveSuccess={(newAgent) => {
+            setCustomAgents(prev => [...prev, newAgent]);
+            setCurrentChatAgentId(newAgent.id);
+            setMessages([{ role: 'assistant', content: `你好！我是你刚刚创建的专属助教【${newAgent.name}】🤖。我已经加载了你分配给我的知识库，随时可以开始工作！` }]);
+          }}
+        />
+      )}
+
     </div>
   );
 }
