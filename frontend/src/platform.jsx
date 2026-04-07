@@ -1,5 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Radar, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip } from 'recharts';
+// 🌟 修正了引入路径，确保 React 能找到同目录下的组件
+import TargetedPractice from './TargetedPractice';
 
 export default function UserPortal() {
   // ==========================================
@@ -435,13 +437,19 @@ export default function UserPortal() {
                   </div>
                   <p style={{ fontSize: '16px', color: '#555', backgroundColor: '#f6ffed', padding: '12px 16px', borderRadius: '8px' }}><strong>👨‍🏫 教授点评：</strong>{gradingResult.summary}</p>
                   <h3 style={{ marginTop: '24px', color: '#333', borderBottom: '1px solid #eee', paddingBottom: '8px' }}>📝 细节批注：</h3>
+
+                  {/* 🌟 核心注入点：在每个错误后面动态渲染出题靶点 */}
                   {gradingResult.annotations.map((ann, idx) => (
                     <div key={idx} style={{ marginBottom: '20px', padding: '16px', backgroundColor: '#fffaf0', borderLeft: '4px solid #faad14', borderRadius: '0 8px 8px 0' }}>
                       <div style={{ fontWeight: 'bold', color: '#d46b08', marginBottom: '8px' }}>📍 {ann.location}</div>
                       <div style={{ color: '#cf1322', marginBottom: '8px', fontSize: '14px' }}><strong>❌ 问题：</strong>{ann.explanation}</div>
                       <div style={{ color: '#08979c', fontSize: '14px' }}><strong>💡 建议：</strong>{ann.suggestion}</div>
+
+                      {/* 👇 我们的魔法组件就在这里渲染，并把错误信息传进去 */}
+                      <TargetedPractice errorContext={ann.explanation} />
                     </div>
                   ))}
+
                   {annotatedFile && (
                     <button onClick={() => { const a = document.createElement('a'); a.href = annotatedFile; a.download = 'AI批注.docx'; a.click(); }} style={{ marginTop: '24px', padding: '12px 24px', width: '100%', backgroundColor: '#52c41a', color: '#fff', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', fontSize: '16px' }}>📥 下载 AI 批注原文件</button>
                   )}

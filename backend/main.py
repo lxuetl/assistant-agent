@@ -78,6 +78,12 @@ class HomeworkRequest(BaseModel):
 # 🌟 新增：接收要导出为 Word 的内容
 class ExportDocRequest(BaseModel):
     content: str
+
+    # 1. 定义前端传过来的数据格式
+class TargetedPracticeRequest(BaseModel):
+    course_id: str
+    error_context: str
+    suggestion: str = ""
 # ==========================================
 # 🌟 API 路由区
 # ==========================================
@@ -499,6 +505,34 @@ async def upload_knowledge_endpoint(file: UploadFile = File(...)):
     except Exception as e:
         print(f"❌ [知识库入库失败]: {e}")
         return JSONResponse(status_code=500, content={"error": f"知识库处理失败: {str(e)}"})
+
+
+# 2. 新增出题 API 接口
+@app.post("/api/generate_practice")
+async def generate_practice(request: TargetedPracticeRequest):
+    print(f"📥 收到出题请求，正在针对薄弱点生成题目: {request.error_context}")
+
+    # 构造病灶字典，传给 Agent
+    error_annotation = {
+        "explanation": request.error_context,
+        "suggestion": request.suggestion
+    }
+
+    try:
+        # 这里调用我们之前在 agent_service.py 里写好的出题引擎
+        # 假设你已经实例化了 agent 对象，比如 agent = A25Agent()
+        result_json_str = await agent.generate_targeted_exercises(
+            course_id=request.course_id,
+            error_annotation=error_annotation
+        )
+
+        # 将大模型返回的 JSON 字符串转回 Python 列表并返回给前端
+        quiz_data = json.loads(result_json_str)
+        return {"status": "success", "data": quiz_data}
+
+    except Exception as e:
+        print(f"❌ 生成题目失败: {str(e)}")
+        return {"status": "error", "message": "题目生成失败，请重试"}
 
 if __name__ == "__main__":
     import uvicorn
