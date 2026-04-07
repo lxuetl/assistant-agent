@@ -76,75 +76,70 @@ class HomeworkRequest(BaseModel):
 # 🌟 API 路由区
 # ==========================================
 
-# 4. 路由：核心流式接口 (终极完美解法：手动控制生命周期，彻底切断死锁)
+# 4. 路由：核心流式接口 (终极修复：解决 AI 失忆 + 彻底解决死锁)
 @app.post("/api/chat")
-async def chat_endpoint(request: ChatRequest): # 🌟 核心改动：去掉了 db: Session = Depends(get_db)
-    # 确保前端传来的数组不为空
+async def chat_endpoint(request: ChatRequest):
     if not request.messages:
         raise HTTPException(status_code=400, detail="Messages cannot be empty")
 
+    # 🌟 提取最后一条用户消息
     current_message = request.messages[-1].content
-    if not current_message.strip():
-        raise HTTPException(status_code=400, detail="Message cannot be empty")
+    print(f"📥 [收到请求] 用户: {request.user_id}, 消息: {current_message}")
 
-    print(f"📥 [收到请求] 用户: {request.user_id}, 来源: {request.platform}, 消息: {current_message}")
+    # 🌟 核心修复逻辑：提取前端传过来的“实时上下文”
+    # 这样 AI 就能看到它刚刚在前端发出的那条“主动问候”了！
+    # 我们取 request.messages 中除了最后一条以外的所有内容作为当前会话记忆
+    live_context = [
+        {"role": msg.role, "content": msg.content}
+        for msg in request.messages[:-1]
+    ]
 
-    # 🌟 第一步：瞬间开门，读完数据，立刻关门拔钥匙！(彻底释放读锁)
+    # 1. 尝试从数据库补充更久远的记忆 (瞬间开闭，防止锁死)
     db_read = SessionLocal()
+    history_context = []
     try:
         recent_history = db_read.query(ChatHistory) \
             .filter(ChatHistory.user_id == request.user_id) \
             .order_by(desc(ChatHistory.id)) \
-            .limit(10).all()
+            .limit(5).all() # 数据库里拿 5 条就够了，补充背景
         recent_history.reverse()
         history_context = [{"role": h.role, "content": h.content} for h in recent_history]
     finally:
-        db_read.close() # 🔑 拔出钥匙！此时 SQLite 处于完全无锁的空闲状态
+        db_read.close()
+
+    # 🌟 终极合并：数据库历史 + 前端实时消息
+    # 这样 AI 的大脑里就有：[很久以前的事] + [刚刚主动说的那句话] + [用户现在的回复]
+    full_memory = history_context + live_context
 
     async def stream_and_save():
         full_ai_response = ""
-
-        # 第二步：此时没有任何数据库连接，大模型放心大胆地流式打字耗时几秒钟
+        # 2. 流式对话
         async for chunk in agent.execute_stream(
                 user_input=current_message,
                 page_context=request.page_context,
-                chat_history=history_context,
+                chat_history=full_memory,  # 🌟 传入完整的合成记忆
                 user_id=request.user_id,
                 course_id=request.course_id
         ):
             full_ai_response += chunk
             yield chunk
 
-        # 🌟 第三步：打字结束后，瞬间开新门，写入数据，再次关门！
+        # 3. 结束后极速存入数据库
         db_write = SessionLocal()
         try:
-            user_record = ChatHistory(
-                user_id=request.user_id,
-                course_id=request.course_id,
-                platform=request.platform,
-                role="user",
-                content=current_message
-            )
-            ai_record = ChatHistory(
-                user_id=request.user_id,
-                course_id=request.course_id,
-                platform=request.platform,
-                role="ai",
-                content=full_ai_response
-            )
-            db_write.add_all([user_record, ai_record])
+            # 存入用户这一句
+            db_write.add(ChatHistory(user_id=request.user_id, role="user", content=current_message))
+            # 存入 AI 这一句 (如果是前端生成的，以后也会被存下来)
+            db_write.add(ChatHistory(user_id=request.user_id, role="ai", content=full_ai_response))
             db_write.commit()
-            print(f"✅ 💾 [数据库] 用户 {request.user_id} 的聊天记忆已极速落盘！")
+            print(f"✅ 💾 [数据库] 聊天记忆已存入。")
         except Exception as e:
             db_write.rollback()
-            print(f"❌ [数据库] 聊天记忆保存失败: {e}")
+            print(f"❌ [数据库] 保存失败: {e}")
         finally:
-            db_write.close() # 🔑 再次拔出钥匙！
+            db_write.close()
 
-    return StreamingResponse(
-        stream_and_save(),
-        media_type="text/event-stream"
-    )
+    return StreamingResponse(stream_and_save(), media_type="text/event-stream")
 
 @app.post("/api/quiz")
 async def generate_quiz_endpoint(request: Request):
