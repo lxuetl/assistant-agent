@@ -1,14 +1,21 @@
-#这是后端数据库
 from sqlalchemy import create_engine, Column, Integer, String, Boolean, DateTime, Text, JSON
-from sqlalchemy.orm import declarative_base, sessionmaker
+from sqlalchemy.orm import sessionmaker, declarative_base
 import datetime
 
-# 1. 配置 SQLite 数据库连接（会在当前目录自动生成一个 a25_data.db 文件）
-SQLALCHEMY_DATABASE_URL = "sqlite:///./a25_data.db"
+# ==========================================
+# 1. 配置 MySQL 数据库连接
+# ==========================================
+# 🌟 注意：请确保你刚才安装时设置的密码是 123456
+# 格式：mysql+pymysql://用户名:密码@服务器地址:端口/数据库名
+# 我们这里先连向 mysql 这个自带库，或者你手动去 MySQL 建一个叫 a25_db 的库
+SQLALCHEMY_DATABASE_URL = "mysql+pymysql://root:123456@127.0.0.1:3306/a25_db?charset=utf8mb4"
 
-# connect_args={"check_same_thread": False} 是 SQLite 在 FastAPI 中使用的必备设置
+# 🌟 MySQL 是服务端数据库，天生支持多线程，所以不再需要 check_same_thread
+# 我们加入 pool_recycle 并在连接异常时自动重连，提高稳定性
 engine = create_engine(
-    SQLALCHEMY_DATABASE_URL, connect_args={"check_same_thread": False, "timeout": 15}
+    SQLALCHEMY_DATABASE_URL,
+    pool_recycle=3600,
+    pool_pre_ping=True
 )
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
@@ -21,55 +28,57 @@ Base = declarative_base()
 class QuizRecord(Base):
     """错题本/做题记录表"""
     __tablename__ = "quiz_records"
-    user_id = Column(String, index=True)
-    course_id = Column(String, index=True)
-    platform = Column(String, default="web")
     id = Column(Integer, primary_key=True, index=True)
-    question = Column(Text, nullable=False)           # 题干
-    options = Column(Text, nullable=True)             # 选项内容
-    user_choice = Column(String(10), nullable=False)  # 用户选了什么 (A/B/C/D)
-    correct_answer = Column(String(10), nullable=False)# 正确答案是什么
-    is_correct = Column(Boolean, default=False)       # 是否做对了
-    explanation = Column(Text, nullable=True)         # 解析
-    created_at = Column(DateTime, default=datetime.datetime.utcnow) # 做题时间
+    user_id = Column(String(50), index=True) # MySQL 索引建议指定长度
+    course_id = Column(String(50), index=True)
+    platform = Column(String(20), default="web")
+    question = Column(Text, nullable=False)
+    options = Column(Text, nullable=True)
+    user_choice = Column(String(10), nullable=False)
+    correct_answer = Column(String(10), nullable=False)
+    is_correct = Column(Boolean, default=False)
+    explanation = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=datetime.datetime.now)
 
 class ChatHistory(Base):
     """历史聊天记录表"""
     __tablename__ = "chat_histories"
-    user_id = Column(String, index=True)
-    course_id = Column(String, index=True)
-    platform = Column(String, default="web")
     id = Column(Integer, primary_key=True, index=True)
-    role = Column(String(50), nullable=False)         # 角色: user 或 ai
-    content = Column(Text, nullable=False)            # 聊天内容
-    created_at = Column(DateTime, default=datetime.datetime.utcnow) # 聊天时间
+    user_id = Column(String(50), index=True)
+    course_id = Column(String(50), index=True)
+    platform = Column(String(20), default="web")
+    role = Column(String(20), nullable=False)
+    content = Column(Text, nullable=False)
+    created_at = Column(DateTime, default=datetime.datetime.now)
 
-# 🌟 新增：千人千面数据底座 —— 学生个体成绩表
 class StudentScore(Base):
     """学生成绩表（存储解析后的 Excel 个体数据）"""
     __tablename__ = "student_scores"
     id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(String, index=True)               # 学号，用来让前端精准匹配
-    student_name = Column(String)                      # 姓名
-    course_id = Column(String, default="default_course")
-    score_data = Column(JSON)                          # 🌟 核心魔法：用 JSON 存不固定的科目和分数！
+    user_id = Column(String(50), index=True)
+    student_name = Column(String(50))
+    course_id = Column(String(50), default="default_course")
+    score_data = Column(JSON) # MySQL 5.7+ 原生支持 JSON 类型，非常适合存动态成绩
 
 # ==========================================
-# 3. 自动建表引擎
+# 3. 自动建表与依赖注入
 # ==========================================
+
 def init_db():
-    # 只要运行这句话，SQLAlchemy 就会检查表存不存在，不存在就自动创建
-    Base.metadata.create_all(bind=engine)
-    print("✅ 数据库初始化完成！表结构已就绪。")
+    """初始化数据库：如果表不存在则创建"""
+    try:
+        Base.metadata.create_all(bind=engine)
+        print("✅ MySQL 数据库初始化完成！A25 数据表已就绪。")
+    except Exception as e:
+        print(f"❌ 数据库初始化失败，请检查是否已创建 a25_db 数据库。错误信息: {e}")
 
-# 依赖注入：供 FastAPI 路由获取数据库 Session
 def get_db():
+    """FastAPI 依赖注入：获取数据库 Session"""
     db = SessionLocal()
     try:
         yield db
     finally:
-        db.close()
+        db.close() # 🌟 这一步极其重要，确保连接及时归还给连接池，防止锁表
 
-# 如果直接运行这个文件，就执行建表
 if __name__ == "__main__":
     init_db()
