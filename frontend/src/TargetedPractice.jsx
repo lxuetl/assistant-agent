@@ -1,31 +1,71 @@
 import React, { useState } from 'react';
 
-// 🎯 靶向训练组件：你可以把它嵌在每一个“错误批注”的下方
-const TargetedPractice = ({ errorContext }) => {
+// 🎯 靶向训练组件
+const TargetedPractice = ({ errorContext, suggestion = "" }) => {
   const [isGenerating, setIsGenerating] = useState(false);
-  const [quizData, setQuizData] = useState(null);
-  const [selectedAnswer, setSelectedAnswer] = useState(null);
+  const [quizData, setQuizData] = useState([]);
+  const [userAnswers, setUserAnswers] = useState({});
+  const [showResults, setShowResults] = useState(false);
 
-  // 模拟调用后端接口的过程
-  const handleGenerateClick = () => {
+  const handleGenerateClick = async () => {
+    if (!errorContext) return;
+
     setIsGenerating(true);
-    // 模拟大模型思考的 3 秒钟（这里以后换成真实的 fetch 请求）
-    setTimeout(() => {
-      setIsGenerating(false);
-      setQuizData({
-        question: "【针对性加练】在 Excel 高级筛选中，如果要筛选出成绩“及格”（满分100，60分及格）的同学，条件区域应填写？",
-        options: ["A. >60", "B. >=60", "C. =60", "D. <60"],
-        correct_answer: "B",
-        analysis: "包含边界值至关重要，及格包含60分，必须使用 >= 运算符。这正是你刚才作业中疏忽的地方哦！"
+    setQuizData([]);
+    setUserAnswers({});
+    setShowResults(false);
+
+    try {
+      const response = await fetch('http://localhost:8000/api/generate_practice', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          course_id: "demo",
+          error_context: errorContext,
+          suggestion: suggestion
+        })
       });
-    }, 3000);
+
+      const result = await response.json();
+
+      if (result.status === 'success') {
+        // 🌟 核心破案点：增强前端的包容性，兼容各种奇葩结构
+        let questions = [];
+        const resData = result.data;
+
+        if (Array.isArray(resData)) {
+          questions = resData; // 格式 1: 直接是数组 [...]
+        } else if (resData && Array.isArray(resData.questions)) {
+          questions = resData.questions; // 格式 2: 包在 questions 里的数组
+        } else if (resData && resData.question) {
+          questions = [resData]; // 🌟 格式 3 (你遇到的情况): 单个题目对象，我们手动给它包一层数组！
+        }
+
+        if (questions.length === 0) {
+          alert("⚠️ AI 未能生成有效题目，请重试。");
+        } else {
+          setQuizData(questions);
+        }
+      } else {
+        alert("❌ 生成题目失败：" + (result.message || "未知错误"));
+      }
+    } catch (error) {
+      console.error("请求出题接口失败:", error);
+      alert("❌ 网络连接失败，请检查后端服务是否正常运行。");
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
+  const handleOptionSelect = (qIndex, optString) => {
+    if (showResults) return;
+    setUserAnswers(prev => ({ ...prev, [qIndex]: optString }));
   };
 
   return (
     <div style={{ marginTop: '15px', padding: '15px', border: '1px dashed #1890ff', borderRadius: '8px', backgroundColor: '#fafafa' }}>
 
-      {/* 阶段 1：展示触发按钮 */}
-      {!isGenerating && !quizData && (
+      {!isGenerating && quizData.length === 0 && (
         <button
           onClick={handleGenerateClick}
           style={{
@@ -33,59 +73,106 @@ const TargetedPractice = ({ errorContext }) => {
             color: '#fff', border: 'none', padding: '8px 16px', borderRadius: '20px', cursor: 'pointer', fontWeight: 'bold', boxShadow: '0 4px 14px rgba(114, 46, 209, 0.4)'
           }}
         >
-          ✨ 攻克此薄弱点 (生成靶向练习)
+          ✨ 攻克此薄弱点 (AI 实时生成靶向练习)
         </button>
       )}
 
-      {/* 阶段 2：展示炫酷的加载动画 */}
       {isGenerating && (
         <div style={{ color: '#1890ff', fontWeight: '500' }}>
           <span style={{ display: 'inline-block', animation: 'spin 1.5s linear infinite', marginRight: '8px' }}>⚙️</span>
-          A25 正在分析你的薄弱点，翻阅课件生成专属题目...
+          A25 正在分析你的薄弱点，生成专属题目...
         </div>
       )}
 
-      {/* 阶段 3：展示题目和答题区 */}
-      {quizData && (
+      {quizData.length > 0 && (
         <div style={{ marginTop: '10px' }}>
-          <h4 style={{ margin: '0 0 10px 0', color: '#333' }}>{quizData.question}</h4>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-            {quizData.options.map((opt, idx) => {
-              const isCorrect = quizData.correct_answer === opt[0]; // 简单判断 A, B, C, D
-              const isSelected = selectedAnswer === opt[0];
-
-              let bgColor = '#fff';
-              if (selectedAnswer) {
-                if (isCorrect) bgColor = '#d9f7be'; // 绿色（正确）
-                else if (isSelected) bgColor = '#ffa39e'; // 红色（选错）
-              }
-
-              return (
-                <div
-                  key={idx}
-                  onClick={() => !selectedAnswer && setSelectedAnswer(opt[0])}
-                  style={{
-                    padding: '10px', border: '1px solid #d9d9d9', borderRadius: '6px',
-                    cursor: selectedAnswer ? 'not-allowed' : 'pointer',
-                    backgroundColor: bgColor, transition: 'all 0.3s'
-                  }}
-                >
-                  {opt}
-                </div>
-              );
-            })}
+          <div style={{ fontWeight: 'bold', color: '#0958d9', marginBottom: '16px', fontSize: '15px' }}>
+            📚 AI 靶向巩固练习 (共 {quizData.length} 题)
           </div>
 
-          {/* 答题后的解析 */}
-          {selectedAnswer && (
-            <div style={{ marginTop: '15px', padding: '10px', backgroundColor: '#e6f7ff', borderRadius: '6px', color: '#096dd9' }}>
-              <strong>💡 AI 深度解析：</strong>{quizData.analysis}
+          {quizData.map((q, qIndex) => (
+            <div key={qIndex} style={{ marginBottom: '24px', backgroundColor: '#fff', padding: '16px', borderRadius: '8px', border: '1px solid #e8e8e8' }}>
+              <h4 style={{ margin: '0 0 12px 0', color: '#333', whiteSpace: 'pre-wrap' }}>{qIndex + 1}. {q.question}</h4>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                {q.options.map((opt, optIndex) => {
+                  const isSelected = userAnswers[qIndex] === opt;
+                  // 严谨判断答案
+                  const isCorrectAnswer = showResults && (opt.startsWith(q.answer) || opt === q.answer || (q.answer.length === 1 && opt.includes(q.answer)));
+                  const isWrongSelection = showResults && isSelected && !isCorrectAnswer;
+
+                  let bgColor = '#fff';
+                  let borderColor = '#d9d9d9';
+
+                  if (isSelected) {
+                    bgColor = '#e6f7ff';
+                    borderColor = '#1890ff';
+                  }
+
+                  if (showResults) {
+                    if (isCorrectAnswer) {
+                      bgColor = '#f6ffed'; borderColor = '#52c41a';
+                    } else if (isWrongSelection) {
+                      bgColor = '#fff2f0'; borderColor = '#ff4d4f';
+                    }
+                  }
+
+                  return (
+                    <div
+                      key={optIndex}
+                      onClick={() => handleOptionSelect(qIndex, opt)}
+                      style={{
+                        padding: '10px 16px', border: `1px solid ${borderColor}`, borderRadius: '6px',
+                        cursor: showResults ? 'default' : 'pointer',
+                        backgroundColor: bgColor, transition: 'all 0.3s',
+                        color: (showResults && isCorrectAnswer) ? '#389e0d' : (showResults && isWrongSelection ? '#cf1322' : '#333'),
+                        fontWeight: (showResults && isCorrectAnswer) ? 'bold' : 'normal'
+                      }}
+                    >
+                      {opt}
+                      {showResults && isCorrectAnswer && <span style={{ float: 'right' }}>✅</span>}
+                      {showResults && isWrongSelection && <span style={{ float: 'right' }}>❌</span>}
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* 🌟 兼容 explanation 和 analysis 两个字段 */}
+              {showResults && (q.explanation || q.analysis) && (
+                <div style={{ marginTop: '15px', padding: '12px', backgroundColor: '#e6f7ff', borderRadius: '6px', color: '#096dd9', borderLeft: '3px solid #1890ff' }}>
+                  <strong>💡 AI 深度解析：</strong>{q.explanation || q.analysis}
+                </div>
+              )}
             </div>
-          )}
+          ))}
+
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '20px' }}>
+             {!showResults ? (
+               <button
+                 onClick={() => setShowResults(true)}
+                 disabled={Object.keys(userAnswers).length !== quizData.length}
+                 style={{
+                   padding: '8px 24px',
+                   backgroundColor: Object.keys(userAnswers).length === quizData.length ? '#1890ff' : '#ccc',
+                   color: '#fff', border: 'none', borderRadius: '6px',
+                   cursor: Object.keys(userAnswers).length === quizData.length ? 'pointer' : 'not-allowed',
+                   fontWeight: 'bold'
+                 }}
+               >
+                 交卷看解析
+               </button>
+             ) : (
+               <button
+                 onClick={handleGenerateClick}
+                 style={{ padding: '8px 16px', backgroundColor: '#fff', border: '1px solid #1890ff', color: '#1890ff', borderRadius: '6px', cursor: 'pointer' }}
+               >
+                 🔄 换一批题
+               </button>
+             )}
+          </div>
         </div>
       )}
 
-      {/* 防止你刚才没加旋转动画，在这里补上 */}
       <style>{`@keyframes spin { 100% { transform: rotate(360deg); } }`}</style>
     </div>
   );

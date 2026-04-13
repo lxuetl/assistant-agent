@@ -390,21 +390,33 @@ export default function UserPortal() {
                 <div>
                   <div style={{ fontWeight: 'bold', color: '#333', marginBottom: '12px', display: 'flex', alignItems: 'center' }}>
                     <span style={{ width: '24px', height: '24px', backgroundColor: '#1677ff', color: '#fff', borderRadius: '50%', display: 'flex', justifyContent: 'center', alignItems: 'center', marginRight: '8px', fontSize: '14px' }}>2</span>
-                    上传解答 (支持拍照/截图)：
+                    上传解答 (支持拖拽 Word/图片/PDF)：
                   </div>
                   <div style={{ border: '2px dashed #1677ff', backgroundColor: fileData ? '#f6ffed' : '#e6f4ff', borderRadius: '12px', padding: '20px', textAlign: 'center', position: 'relative', overflow: 'hidden', minHeight: '150px', display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center' }}>
+
+                    {/* 🌟 核心修改 1：重构识别与读取逻辑 */}
                     <input
                       type="file"
-                      accept="image/*,.c,.cpp,.py,.txt,.docx"
+                      accept="image/*,.c,.cpp,.py,.txt,.docx,.doc,.pdf"
                       onChange={(e) => {
                         const file = e.target.files[0];
                         if (!file) return;
+
+                        const fileName = file.name.toLowerCase();
+                        let detectedType = "text";
+
+                        if (fileName.endsWith('.docx')) detectedType = "docx";
+                        else if (fileName.endsWith('.doc')) detectedType = "doc";
+                        else if (fileName.endsWith('.pdf')) detectedType = "pdf";
+                        else if (file.type.startsWith('image/')) detectedType = "image";
+
+                        setFileType(detectedType);
+
                         const reader = new FileReader();
-                        if (file.type.startsWith('image/') || file.name.endsWith('.docx')) {
-                          setFileType(file.type.startsWith('image/') ? 'image' : 'docx');
+                        // 非纯文本全部用 Base64 读取，防止乱码
+                        if (detectedType !== 'text') {
                           reader.readAsDataURL(file);
                         } else {
-                          setFileType('text');
                           reader.readAsText(file);
                         }
                         reader.onload = () => setFileData(reader.result);
@@ -420,7 +432,7 @@ export default function UserPortal() {
                       <>
                         <span style={{ fontSize: '40px' }}>{fileData ? '✅' : '📷'}</span>
                         <h3 style={{ margin: '16px 0 8px 0', color: fileData ? '#52c41a' : '#1677ff' }}>
-                          {fileData ? '文件已就绪，点击或拖拽可重新上传' : '点击拍照或上传作业图片'}
+                          {fileData ? `文件已就绪 (检测类型: ${fileType})` : '点击或拖拽上传作业文档'}
                         </h3>
                       </>
                     )}
@@ -440,13 +452,17 @@ export default function UserPortal() {
                       const data = await res.json();
                       if (data.status === 'success') {
                          setGradingResult(JSON.parse(data.grading_result));
-                         if (data.annotated_file) setAnnotatedFile(data.annotated_file);
+
+                         // 🌟 核心修改 2：拦截批注文件流，强行触发浏览器下载
+                         if (data.annotated_file) {
+                            setAnnotatedFile(data.annotated_file);
+                         }
                       } else { alert("出错：" + JSON.stringify(data)); }
                     } catch (err) { alert("请求失败！"); } finally { setIsGrading(false); }
                   }}
                   style={{ width: '100%', marginTop: '32px', padding: '14px 0', backgroundColor: (questionText && fileData && !isGrading) ? '#1677ff' : '#ccc', color: '#fff', border: 'none', borderRadius: '8px', fontSize: '16px', fontWeight: 'bold', cursor: (questionText && fileData && !isGrading) ? 'pointer' : 'not-allowed' }}
                 >
-                  {isGrading ? '⏳ AI 视觉引擎深度批阅中...' : '✨ 开始智能批阅'}
+                  {isGrading ? '⏳ AI 引擎深度批阅中...' : '✨ 开始智能批阅'}
                 </button>
               </div>
 
@@ -468,9 +484,48 @@ export default function UserPortal() {
                     </div>
                   ))}
 
+                  {/* 手动下载兜底按钮 */}
                   {annotatedFile && (
-                    <button onClick={() => { const a = document.createElement('a'); a.href = annotatedFile; a.download = 'AI批注.docx'; a.click(); }} style={{ marginTop: '24px', padding: '12px 24px', width: '100%', backgroundColor: '#52c41a', color: '#fff', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', fontSize: '16px' }}>📥 下载 AI 批注原文件</button>
-                  )}
+                    <div style={{
+                    marginTop: '24px',
+                    padding: '20px',
+                    backgroundColor: '#f0f5ff',
+                    borderRadius: '8px',
+                    border: '1px solid #adc6ff',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    gap: '12px'
+                    }}>
+                    <div style={{ color: '#1d39c4', fontSize: '14px', fontWeight: 'bold' }}>
+                    ✅ AI 批注已合成完毕，您可以选择导出到本地：
+                    </div>
+                    <button
+                    onClick={() => {
+                        const a = document.createElement('a');
+                        a.href = annotatedFile;
+                        a.download = `A25_智能批改反馈.docx`;
+                        a.click();
+                    }}
+                    style={{
+                        padding: '12px 32px',
+                        backgroundColor: '#1677ff',
+                        color: '#fff',
+                        border: 'none',
+                        borderRadius: '8px',
+                        cursor: 'pointer',
+                        fontWeight: 'bold',
+                        fontSize: '16px',
+                        boxShadow: '0 4px 12px rgba(22,119,255,0.3)',
+                        transition: 'all 0.3s'
+                    }}
+                    onMouseOver={(e) => e.target.style.backgroundColor = '#40a9ff'}
+                    onMouseOut={(e) => e.target.style.backgroundColor = '#1677ff'}
+                    >
+                    下载带批注的Word文件
+                    </button>
+                </div>
+                )}
                 </div>
               )}
             </div>
