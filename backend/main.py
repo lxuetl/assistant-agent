@@ -19,13 +19,13 @@ import base64
 import zipfile # 🌟 核心新增：用于捕捉虚假的 docx 文件
 from langchain_openai import ChatOpenAI
 from langchain_core.messages import HumanMessage, SystemMessage
-
+from pydantic import BaseModel
 from agent_service import A25Agent
-from database import get_db, QuizRecord, ChatHistory, StudentScore, SessionLocal, engine, Base
+from database import get_db, QuizRecord, ChatHistory, StudentScore, SessionLocal, engine, Base, User
 from vector_store import build_vector_store
 
-import win32com.client
-import pythoncom
+#import win32com.client
+#import pythoncom
 import tempfile
 
 # 1. 初始化应用和 Agent
@@ -85,6 +85,39 @@ class TargetedPracticeRequest(BaseModel):
 class PromptEnhanceRequest(BaseModel):
     short_desc: str
     role: str
+
+class LoginRequest(BaseModel):
+    account_id: str
+    password: str
+    role: str
+
+class RegisterRequest(BaseModel):
+    account_id: str
+    password: str
+    role: str  # student 或 teacher
+    name: str
+
+# ==========================================
+# 🌟 登录接口
+# ==========================================
+@app.post("/api/login")
+async def login(request: LoginRequest, db: Session = Depends(get_db)):
+    user = db.query(User).filter(
+        User.account_id == request.account_id,
+        User.role == request.role
+    ).first()
+    
+    if not user or user.password != request.password:  # 实际用哈希验证
+        raise HTTPException(status_code=401, detail="账号或密码错误")
+    
+    return {
+        "status": "success",
+        "user": {
+            "account_id": user.account_id,
+            "role": user.role,
+            "name": user.name
+        }
+    }
 
 # ==========================================
 # 🌟 API 路由区
@@ -412,3 +445,22 @@ if __name__ == "__main__":
     import uvicorn
 
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True, reload_excludes=["*.db", "*.db-journal"])
+
+@app.post("/api/register")
+async def register(request: RegisterRequest, db: Session = Depends(get_db)):
+    # 检查账号是否已存在
+    existing = db.query(User).filter(User.account_id == request.account_id).first()
+    if existing:
+        raise HTTPException(status_code=400, detail="账号已存在")
+    
+    # 创建新用户
+    new_user = User(
+        account_id=request.account_id,
+        password=request.password,  # 生产环境要哈希存储！
+        role=request.role,
+        name=request.name
+    )
+    db.add(new_user)
+    db.commit()
+    
+    return {"status": "success", "message": "注册成功"}

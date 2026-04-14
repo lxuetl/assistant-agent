@@ -11,3 +11,5 @@ pandas
 python-docx
 PyMuPDF
 python-multipart
+aiofiles
+langchain-chroma

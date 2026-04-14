@@ -9,7 +9,8 @@ embeddings = OpenAIEmbeddings(
     base_url="https://dashscope.aliyuncs.com/compatible-mode/v1",
     model="text-embedding-v3", 
     check_embedding_ctx_length=False,
-    chunk_size=10  # 🌟 双保险：强制告诉底层库，每次最多只发 10 条
+    chunk_size=10,  # 🌟 双保险：强制告诉底层库，每次最多只发 10 条
+    api_key="sk-6836300a7db64bceb5ab29f597ff3ea9",
 )
 
 # 定义本地数据库的存放文件夹

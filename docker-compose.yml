@@ -1,5 +1,6 @@
 services:
   backend:
+    build: ./backend
     image: a25-backend
     container_name: a25-backend
     ports:
@@ -8,6 +9,7 @@ services:
       - OPENAI_API_KEY=sk-23b36403d68245dc9b5ae3afcf20d669
 
   frontend:
+    build: ./frontend
     image: a25-frontend
     container_name: a25-frontend
     ports:

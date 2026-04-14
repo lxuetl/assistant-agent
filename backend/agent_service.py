@@ -20,7 +20,8 @@ class ModelFactory:
             model="qwen3.5-35b-a3b",
             temperature=0,
             streaming=True,
-            verbose=False
+            verbose=False,
+            api_key="sk-6836300a7db64bceb5ab29f597ff3ea9" 
         )
 
 

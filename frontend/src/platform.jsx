@@ -7,11 +7,17 @@ import AgentBuilder from './AgentBuilder';
 export default function UserPortal() {
   // ==========================================
   // 🌟 全局状态：控制是否登录以及当前身份
-  // ==========================================
+  // ========================================== 
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [role, setRole] = useState('student');
   const [accountId, setAccountId] = useState('');
-
+  const [showRegister, setShowRegister] = useState(false);
+  const [registerData, setRegisterData] = useState({
+    account_id: '',
+    password: '',
+    name: '',
+    role: 'student'
+  });
   // ==========================================
   // 🌟 内部状态：A25 主功能区状态
   // ==========================================
@@ -99,7 +105,34 @@ export default function UserPortal() {
     }
   }, [activeTab, myScoreData.weakest, classData.weakest, hasPromptedWeakness, role, myScoreData.name]);
 
-  // 4. 发送消息核心逻辑
+  // 4. 注册账号
+  const handleRegister = async () => {
+    if (!registerData.account_id || !registerData.password || !registerData.name) {
+      alert("请填写完整信息");
+      return;
+    }
+    
+    try {
+      const res = await fetch('http://localhost:8000/api/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(registerData)
+      });
+      const data = await res.json();
+      if (data.status === 'success') {
+        alert("注册成功！请登录");
+        setShowRegister(false);
+        setAccountId(registerData.account_id);
+        setRegisterData({ account_id: '', password: '', name: '', role: 'student' });
+      } else {
+        alert("注册失败：" + (data.detail || "未知错误"));
+      }
+    } catch (err) {
+      alert("网络错误：" + err.message);
+    }
+  };
+
+  // 5. 发送消息核心逻辑
   const handleSendMessage = async () => {
     if (!inputText.trim() || isChatting) return;
 
@@ -180,7 +213,7 @@ export default function UserPortal() {
     }
   };
 
-  // 5. 下载 Word 文档
+  // 6. 下载 Word 文档
   const handleDownloadDoc = async () => {
     if (!generatedDoc || isDownloading) return;
     setIsDownloading(true);
@@ -236,7 +269,151 @@ export default function UserPortal() {
               <div style={{ fontSize: '13px', color: '#666', marginBottom: '8px', fontWeight: 'bold' }}>密码</div>
               <input type="password" placeholder="请输入密码" style={{ width: '100%', padding: '12px', borderRadius: '8px', border: '1px solid #d9d9d9', outline: 'none', boxSizing: 'border-box' }} />
             </div>
-            <button onClick={() => setIsLoggedIn(true)} style={{ width: '100%', padding: '14px', borderRadius: '8px', border: 'none', backgroundColor: role === 'student' ? '#1677ff' : '#52c41a', color: '#fff', fontSize: '16px', fontWeight: 'bold', cursor: 'pointer', transition: 'background 0.3s', boxShadow: role === 'student' ? '0 4px 12px rgba(22,119,255,0.3)' : '0 4px 12px rgba(82,196,26,0.3)' }}>登 录 系 统</button>
+            <button 
+              onClick={async () => {
+                const passwordInput = document.querySelector('input[type="password"]');
+                const password = passwordInput ? passwordInput.value : '';
+                
+                if (!accountId || !password) {
+                  alert("请输入账号和密码");
+                  return;
+                }
+                
+                try {
+                  const res = await fetch('http://localhost:8000/api/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                      account_id: accountId,
+                      password: password,
+                      role: role
+                    })
+                  });
+                  const data = await res.json();
+                  console.log("登录返回数据:", data);
+                  if (data.status === 'success') {
+                    console.log("登录成功，即将跳转");
+                    setIsLoggedIn(true);
+                  } else {
+                    alert("登录失败：" + (data.detail || "账号或密码错误"));
+                  }
+                } catch (err) {
+                  alert("网络错误：" + err.message);
+                }
+              }}
+              style={{ 
+                width: '100%', 
+                padding: '14px', 
+                borderRadius: '8px', 
+                border: 'none', 
+                backgroundColor: role === 'student' ? '#1677ff' : '#52c41a', 
+                color: '#fff', 
+                fontSize: '16px', 
+                fontWeight: 'bold', 
+                cursor: 'pointer', 
+                transition: 'background 0.3s', 
+                boxShadow: role === 'student' ? '0 4px 12px rgba(22,119,255,0.3)' : '0 4px 12px rgba(82,196,26,0.3)' 
+              }}
+            >
+              登 录 系 统
+            </button>
+            <button 
+              onClick={() => setShowRegister(true)}
+              style={{ 
+                width: '100%', 
+                padding: '14px', 
+                borderRadius: '8px', 
+                border: '1px solid #d9d9d9',
+                backgroundColor: '#fff', 
+                color: '#666', 
+                fontSize: '16px', 
+                fontWeight: 'bold', 
+                cursor: 'pointer', 
+                marginTop: '12px'
+              }}
+            >
+              📝 注册账号
+            </button>
+            {/* 注册弹窗 */}
+            {showRegister && (
+              <div style={{
+                position: 'fixed',
+                top: 0,
+                left: 0,
+                right: 0,
+                bottom: 0,
+                backgroundColor: 'rgba(0,0,0,0.5)',
+                display: 'flex',
+                justifyContent: 'center',
+                alignItems: 'center',
+                zIndex: 1000
+              }} onClick={() => setShowRegister(false)}>
+                <div style={{
+                  backgroundColor: '#fff',
+                  borderRadius: '16px',
+                  padding: '32px',
+                  width: '400px',
+                  maxWidth: '90%'
+                }} onClick={(e) => e.stopPropagation()}>
+                  <h2 style={{ marginBottom: '24px', textAlign: 'center' }}>注册新账号</h2>
+                  
+                  <div style={{ marginBottom: '16px' }}>
+                    <div style={{ fontSize: '13px', color: '#666', marginBottom: '8px' }}>角色</div>
+                    <div style={{ display: 'flex', gap: '16px' }}>
+                      <label style={{ cursor: 'pointer' }}>
+                        <input type="radio" value="student" checked={registerData.role === 'student'} onChange={() => setRegisterData({...registerData, role: 'student'})} /> 学生
+                      </label>
+                      <label style={{ cursor: 'pointer' }}>
+                        <input type="radio" value="teacher" checked={registerData.role === 'teacher'} onChange={() => setRegisterData({...registerData, role: 'teacher'})} /> 教师
+                      </label>
+                    </div>
+                  </div>
+                  
+                  <div style={{ marginBottom: '16px' }}>
+                    <div style={{ fontSize: '13px', color: '#666', marginBottom: '8px' }}>姓名</div>
+                    <input type="text" value={registerData.name} onChange={(e) => setRegisterData({...registerData, name: e.target.value})} style={{ width: '100%', padding: '12px', borderRadius: '8px', border: '1px solid #d9d9d9' }} />
+                  </div>
+                  
+                  <div style={{ marginBottom: '16px' }}>
+                    <div style={{ fontSize: '13px', color: '#666', marginBottom: '8px' }}>账号（学号/工号）</div>
+                    <input type="text" value={registerData.account_id} onChange={(e) => setRegisterData({...registerData, account_id: e.target.value})} style={{ width: '100%', padding: '12px', borderRadius: '8px', border: '1px solid #d9d9d9' }} />
+                  </div>
+                  
+                  <div style={{ marginBottom: '24px' }}>
+                    <div style={{ fontSize: '13px', color: '#666', marginBottom: '8px' }}>密码</div>
+                    <input type="password" value={registerData.password} onChange={(e) => setRegisterData({...registerData, password: e.target.value})} style={{ width: '100%', padding: '12px', borderRadius: '8px', border: '1px solid #d9d9d9' }} />
+                  </div>
+                  
+                  <button onClick={handleRegister} style={{
+                    width: '100%',
+                    padding: '14px',
+                    borderRadius: '8px',
+                    border: 'none',
+                    backgroundColor: '#52c41a',
+                    color: '#fff',
+                    fontSize: '16px',
+                    fontWeight: 'bold',
+                    cursor: 'pointer'
+                  }}>
+                    注册
+                  </button>
+                  
+                  <button onClick={() => setShowRegister(false)} style={{
+                    width: '100%',
+                    padding: '14px',
+                    borderRadius: '8px',
+                    border: '1px solid #d9d9d9',
+                    backgroundColor: '#fff',
+                    color: '#666',
+                    fontSize: '14px',
+                    cursor: 'pointer',
+                    marginTop: '12px'
+                  }}>
+                    取消
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -390,33 +567,21 @@ export default function UserPortal() {
                 <div>
                   <div style={{ fontWeight: 'bold', color: '#333', marginBottom: '12px', display: 'flex', alignItems: 'center' }}>
                     <span style={{ width: '24px', height: '24px', backgroundColor: '#1677ff', color: '#fff', borderRadius: '50%', display: 'flex', justifyContent: 'center', alignItems: 'center', marginRight: '8px', fontSize: '14px' }}>2</span>
-                    上传解答 (支持拖拽 Word/图片/PDF)：
+                    上传解答 (支持拍照/截图)：
                   </div>
                   <div style={{ border: '2px dashed #1677ff', backgroundColor: fileData ? '#f6ffed' : '#e6f4ff', borderRadius: '12px', padding: '20px', textAlign: 'center', position: 'relative', overflow: 'hidden', minHeight: '150px', display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center' }}>
-
-                    {/* 🌟 核心修改 1：重构识别与读取逻辑 */}
                     <input
                       type="file"
-                      accept="image/*,.c,.cpp,.py,.txt,.docx,.doc,.pdf"
+                      accept="image/*,.c,.cpp,.py,.txt,.docx"
                       onChange={(e) => {
                         const file = e.target.files[0];
                         if (!file) return;
-
-                        const fileName = file.name.toLowerCase();
-                        let detectedType = "text";
-
-                        if (fileName.endsWith('.docx')) detectedType = "docx";
-                        else if (fileName.endsWith('.doc')) detectedType = "doc";
-                        else if (fileName.endsWith('.pdf')) detectedType = "pdf";
-                        else if (file.type.startsWith('image/')) detectedType = "image";
-
-                        setFileType(detectedType);
-
                         const reader = new FileReader();
-                        // 非纯文本全部用 Base64 读取，防止乱码
-                        if (detectedType !== 'text') {
+                        if (file.type.startsWith('image/') || file.name.endsWith('.docx')) {
+                          setFileType(file.type.startsWith('image/') ? 'image' : 'docx');
                           reader.readAsDataURL(file);
                         } else {
+                          setFileType('text');
                           reader.readAsText(file);
                         }
                         reader.onload = () => setFileData(reader.result);
@@ -432,7 +597,7 @@ export default function UserPortal() {
                       <>
                         <span style={{ fontSize: '40px' }}>{fileData ? '✅' : '📷'}</span>
                         <h3 style={{ margin: '16px 0 8px 0', color: fileData ? '#52c41a' : '#1677ff' }}>
-                          {fileData ? `文件已就绪 (检测类型: ${fileType})` : '点击或拖拽上传作业文档'}
+                          {fileData ? '文件已就绪，点击或拖拽可重新上传' : '点击拍照或上传作业图片'}
                         </h3>
                       </>
                     )}
@@ -452,17 +617,13 @@ export default function UserPortal() {
                       const data = await res.json();
                       if (data.status === 'success') {
                          setGradingResult(JSON.parse(data.grading_result));
-
-                         // 🌟 核心修改 2：拦截批注文件流，强行触发浏览器下载
-                         if (data.annotated_file) {
-                            setAnnotatedFile(data.annotated_file);
-                         }
+                         if (data.annotated_file) setAnnotatedFile(data.annotated_file);
                       } else { alert("出错：" + JSON.stringify(data)); }
                     } catch (err) { alert("请求失败！"); } finally { setIsGrading(false); }
                   }}
                   style={{ width: '100%', marginTop: '32px', padding: '14px 0', backgroundColor: (questionText && fileData && !isGrading) ? '#1677ff' : '#ccc', color: '#fff', border: 'none', borderRadius: '8px', fontSize: '16px', fontWeight: 'bold', cursor: (questionText && fileData && !isGrading) ? 'pointer' : 'not-allowed' }}
                 >
-                  {isGrading ? '⏳ AI 引擎深度批阅中...' : '✨ 开始智能批阅'}
+                  {isGrading ? '⏳ AI 视觉引擎深度批阅中...' : '✨ 开始智能批阅'}
                 </button>
               </div>
 
@@ -484,48 +645,9 @@ export default function UserPortal() {
                     </div>
                   ))}
 
-                  {/* 手动下载兜底按钮 */}
                   {annotatedFile && (
-                    <div style={{
-                    marginTop: '24px',
-                    padding: '20px',
-                    backgroundColor: '#f0f5ff',
-                    borderRadius: '8px',
-                    border: '1px solid #adc6ff',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    alignItems: 'center',
-                    gap: '12px'
-                    }}>
-                    <div style={{ color: '#1d39c4', fontSize: '14px', fontWeight: 'bold' }}>
-                    ✅ AI 批注已合成完毕，您可以选择导出到本地：
-                    </div>
-                    <button
-                    onClick={() => {
-                        const a = document.createElement('a');
-                        a.href = annotatedFile;
-                        a.download = `A25_智能批改反馈.docx`;
-                        a.click();
-                    }}
-                    style={{
-                        padding: '12px 32px',
-                        backgroundColor: '#1677ff',
-                        color: '#fff',
-                        border: 'none',
-                        borderRadius: '8px',
-                        cursor: 'pointer',
-                        fontWeight: 'bold',
-                        fontSize: '16px',
-                        boxShadow: '0 4px 12px rgba(22,119,255,0.3)',
-                        transition: 'all 0.3s'
-                    }}
-                    onMouseOver={(e) => e.target.style.backgroundColor = '#40a9ff'}
-                    onMouseOut={(e) => e.target.style.backgroundColor = '#1677ff'}
-                    >
-                    下载带批注的Word文件
-                    </button>
-                </div>
-                )}
+                    <button onClick={() => { const a = document.createElement('a'); a.href = annotatedFile; a.download = 'AI批注.docx'; a.click(); }} style={{ marginTop: '24px', padding: '12px 24px', width: '100%', backgroundColor: '#52c41a', color: '#fff', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', fontSize: '16px' }}>📥 下载 AI 批注原文件</button>
+                  )}
                 </div>
               )}
             </div>
