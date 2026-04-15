@@ -14,3 +14,6 @@ services:
     container_name: a25-frontend
     ports:
       - 5173:5173
+    volumes:
+    - ./frontend/src:/app/src
+    - ./frontend/public:/app/public

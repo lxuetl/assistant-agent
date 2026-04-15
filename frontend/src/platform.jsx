@@ -249,27 +249,28 @@ export default function UserPortal() {
   // ==========================================
   if (!isLoggedIn) {
     return (
-      <div style={{ display: 'flex', height: '100vh', width: '100vw', backgroundColor: '#f0f2f5', justifyContent: 'center', alignItems: 'center', fontFamily: 'sans-serif' }}>
+      <div style={{ display: 'flex', height: '100vh', width: '100vw', backgroundImage: 'url(/images/background.png)',backgroundSize: 'cover',backgroundPosition: 'center',backgroundRepeat: 'no-repeat', justifyContent: 'center', alignItems: 'center', fontFamily: 'NSimSun' }}>
         <div style={{ backgroundColor: '#fff', width: '400px', borderRadius: '16px', boxShadow: '0 8px 24px rgba(0,0,0,0.08)', overflow: 'hidden', animation: 'fadeIn 0.5s' }}>
           <div style={{ backgroundColor: '#1677ff', padding: '32px 0', textAlign: 'center', color: '#fff' }}>
             <div style={{ fontSize: '48px', marginBottom: '8px' }}>🎓</div>
-            <h1 style={{ margin: 0, fontSize: '24px', letterSpacing: '2px' }}>A25 智能学习中心</h1>
+            <h1 style={{ margin: 0, fontSize: '24px', letterSpacing: '2px' }}>A25智能学习中心</h1>
             <p style={{ margin: '8px 0 0 0', opacity: 0.8, fontSize: '14px' }}>数据驱动的下一代教育平台</p>
           </div>
           <div style={{ padding: '32px' }}>
             <div style={{ display: 'flex', marginBottom: '24px', backgroundColor: '#f5f7fa', borderRadius: '8px', padding: '4px' }}>
-              <div onClick={() => setRole('student')} style={{ flex: 1, textAlign: 'center', padding: '10px 0', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold', transition: 'all 0.3s', backgroundColor: role === 'student' ? '#fff' : 'transparent', color: role === 'student' ? '#1677ff' : '#999', boxShadow: role === 'student' ? '0 2px 8px rgba(0,0,0,0.05)' : 'none' }}>👨‍🎓 学生端</div>
-              <div onClick={() => setRole('teacher')} style={{ flex: 1, textAlign: 'center', padding: '10px 0', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold', transition: 'all 0.3s', backgroundColor: role === 'teacher' ? '#fff' : 'transparent', color: role === 'teacher' ? '#52c41a' : '#999', boxShadow: role === 'teacher' ? '0 2px 8px rgba(0,0,0,0.05)' : 'none' }}>👨‍🏫 教师端</div>
+              <div onClick={() => setRole('student')} style={{ flex: 1, textAlign: 'center', padding: '10px 0', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold', transition: 'all 0.3s', backgroundColor: role === 'student' ? '#fff' : 'transparent', color: role === 'student' ? '#1677ff' : '#999', boxShadow: role === 'student' ? '0 2px 8px rgba(0,0,0,0.05)' : 'none' }}>学生端</div>
+              <div onClick={() => setRole('teacher')} style={{ flex: 1, textAlign: 'center', padding: '10px 0', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold', transition: 'all 0.3s', backgroundColor: role === 'teacher' ? '#fff' : 'transparent', color: role === 'teacher' ? '#52c41a' : '#999', boxShadow: role === 'teacher' ? '0 2px 8px rgba(0,0,0,0.05)' : 'none' }}>教师端</div>
             </div>
             <div style={{ marginBottom: '16px' }}>
               <div style={{ fontSize: '13px', color: '#666', marginBottom: '8px', fontWeight: 'bold' }}>账号</div>
-              <input type="text" value={accountId} onChange={(e) => setAccountId(e.target.value)} placeholder={role === 'student' ? "输入学号 (如刚才表格中的 20041001)" : "请输入教工号 (如: T8001)"} style={{ width: '100%', padding: '12px', borderRadius: '8px', border: '1px solid #d9d9d9', outline: 'none', boxSizing: 'border-box' }} />
+              <input type="text" value={accountId} onChange={(e) => setAccountId(e.target.value)} placeholder={role === 'student' ? "请输入账号" : "请输入教工号"} style={{ width: '100%', padding: '12px', borderRadius: '8px', border: '1px solid #d9d9d9', outline: 'none', boxSizing: 'border-box' }} />
             </div>
             <div style={{ marginBottom: '32px' }}>
               <div style={{ fontSize: '13px', color: '#666', marginBottom: '8px', fontWeight: 'bold' }}>密码</div>
               <input type="password" placeholder="请输入密码" style={{ width: '100%', padding: '12px', borderRadius: '8px', border: '1px solid #d9d9d9', outline: 'none', boxSizing: 'border-box' }} />
             </div>
             <button 
+              className="btn-hover"
               onClick={async () => {
                 const passwordInput = document.querySelector('input[type="password"]');
                 const password = passwordInput ? passwordInput.value : '';
@@ -318,6 +319,7 @@ export default function UserPortal() {
               登 录 系 统
             </button>
             <button 
+              className="btn-hover"
               onClick={() => setShowRegister(true)}
               style={{ 
                 width: '100%', 
@@ -332,7 +334,7 @@ export default function UserPortal() {
                 marginTop: '12px'
               }}
             >
-              📝 注册账号
+              注 册 账 号
             </button>
             {/* 注册弹窗 */}
             {showRegister && (
@@ -424,7 +426,7 @@ export default function UserPortal() {
   // 💻 登录后的主系统界面
   // ==========================================
   return (
-    <div style={{ display: 'flex', height: '100vh', width: '100vw', backgroundColor: '#f5f7fa', fontFamily: 'sans-serif' }}>
+    <div style={{ display: 'flex', height: '100vh', width: '100vw', backgroundColor: '#f5f7fa', fontFamily: 'NSimSun' }}>
       {/* 👈 最左侧的全局大导航 */}
       <div style={{ width: '240px', backgroundColor: '#fff', borderRight: '1px solid #ebeef5', display: 'flex', flexDirection: 'column' }}>
         <div style={{ padding: '24px 20px', fontSize: '20px', fontWeight: 'bold', color: '#1677ff', borderBottom: '1px solid #ebeef5', display: 'flex', alignItems: 'center' }}>
@@ -432,9 +434,9 @@ export default function UserPortal() {
         </div>
         <div style={{ padding: '20px', flex: 1 }}>
           <div style={{ marginBottom: '16px', fontSize: '13px', color: '#999', fontWeight: 'bold' }}>我的教学平台</div>
-          <button onClick={() => jumpToPlatform('https://i.chaoxing.com/')} style={{ width: '100%', padding: '12px 16px', marginBottom: '12px', backgroundColor: '#f0f2f5', border: 'none', borderRadius: '8px', cursor: 'pointer', textAlign: 'left', fontWeight: 'bold', color: '#333' }}>📘 超星学习通</button>
-          <button onClick={() => jumpToPlatform('https://www.yuketang.cn/')} style={{ width: '100%', padding: '12px 16px', marginBottom: '12px', backgroundColor: '#f0f2f5', border: 'none', borderRadius: '8px', cursor: 'pointer', textAlign: 'left', fontWeight: 'bold', color: '#333' }}>🌂 雨课堂</button>
-          <button onClick={() => jumpToPlatform('https://www.zhihuishu.com/')} style={{ width: '100%', padding: '12px 16px', marginBottom: '12px', backgroundColor: '#f0f2f5', border: 'none', borderRadius: '8px', cursor: 'pointer', textAlign: 'left', fontWeight: 'bold', color: '#333' }}>🌳 智慧树</button>
+          <button className="btn-hover" onClick={() => jumpToPlatform('https://i.chaoxing.com/')} style={{ width: '100%', padding: '12px 16px', marginBottom: '12px', backgroundColor: '#f0f2f5', border: 'none', borderRadius: '8px', cursor: 'pointer', textAlign: 'left', fontWeight: 'bold', color: '#333' }}>📘 超星学习通</button>
+          <button className="btn-hover" onClick={() => jumpToPlatform('https://www.yuketang.cn/')} style={{ width: '100%', padding: '12px 16px', marginBottom: '12px', backgroundColor: '#f0f2f5', border: 'none', borderRadius: '8px', cursor: 'pointer', textAlign: 'left', fontWeight: 'bold', color: '#333' }}>🌂 雨课堂</button>
+          <button className="btn-hover" onClick={() => jumpToPlatform('https://www.zhihuishu.com/')} style={{ width: '100%', padding: '12px 16px', marginBottom: '12px', backgroundColor: '#f0f2f5', border: 'none', borderRadius: '8px', cursor: 'pointer', textAlign: 'left', fontWeight: 'bold', color: '#333' }}>🌳 智慧树</button>
         </div>
         <div style={{ padding: '20px', borderTop: '1px solid #ebeef5' }}>
           <div style={{ display: 'flex', alignItems: 'center', marginBottom: '16px' }}>
@@ -447,6 +449,7 @@ export default function UserPortal() {
 
           {/* 🌟 召唤智能体构建舱的魔法按钮 */}
           <button
+            className="btn-hover"
             onClick={() => setShowBuilder(true)}
             style={{ width: '100%', padding: '12px 0', marginBottom: '16px', backgroundImage: 'linear-gradient(135deg, #722ed1 0%, #1677ff 100%)', color: '#fff', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', boxShadow: '0 4px 15px rgba(22,119,255,0.4)', transition: 'transform 0.2s' }}
             onMouseOver={(e) => e.target.style.transform = 'scale(1.02)'}
@@ -456,6 +459,7 @@ export default function UserPortal() {
           </button>
 
           <button
+            className="btn-hover"
             onClick={() => {
               setIsLoggedIn(false); setRole('student'); setAccountId(''); setHasPromptedWeakness(false);
               setClassData({ radar: [], bar: [], weakest: '', total: 0 }); setMyScoreData({ radar: [], weakest: '', name: '' });
@@ -500,7 +504,7 @@ export default function UserPortal() {
                      <div style={{ backgroundColor: '#fff', padding: '24px', borderRadius: '12px', border: '1px solid #ebeef5', boxShadow: '0 4px 12px rgba(0,0,0,0.05)', display: 'flex', flexDirection: 'column' }}>
                        <h3 style={{ marginTop: 0, color: '#cf1322', fontSize: '16px', borderBottom: '1px solid #ffe58f', paddingBottom: '8px' }}>🚨 核心薄弱点预警</h3>
                        <p style={{ color: '#555', lineHeight: '1.6', flex: 1 }}>根据底层数据库的成绩画像，A25 引擎发现你在 <strong>《{myScoreData.weakest || '未知'}》</strong> 模块上得分较低，远低于及格基准。<br/><br/><strong>💡 AI 学习建议：</strong>建议前往 AI 助手界面，输入：“请给我出 3 道相关专项训练题”。</p>
-                       <button onClick={() => setActiveTab('agent')} style={{ padding: '12px', backgroundColor: '#1677ff', color: '#fff', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold' }}>去找 AI 助教加练 🚀</button>
+                       <button className="btn-hover" onClick={() => setActiveTab('agent')} style={{ padding: '12px', backgroundColor: '#1677ff', color: '#fff', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold' }}>去找 AI 助教加练 🚀</button>
                      </div>
                    </div>
                  </>
@@ -510,7 +514,7 @@ export default function UserPortal() {
                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: '24px' }}>
                      <h2 style={{ margin: 0, color: '#333', display: 'flex', alignItems: 'center' }}><span style={{fontSize:'28px', marginRight:'8px'}}>👨‍🏫</span> 25计算机班 - 动态学情诊断看板</h2>
                      <div style={{ position: 'relative', overflow: 'hidden' }}>
-                       <button style={{ backgroundColor: '#52c41a', color: '#fff', padding: '10px 20px', borderRadius: '8px', border: 'none', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', boxShadow: '0 4px 12px rgba(82,196,26,0.3)' }}>{isAnalyzing ? '⏳ 数据急速挖掘与入库中...' : '📂 导入成绩单入库 (CSV/Excel)'}</button>
+                       <button className="btn-hover" style={{ backgroundColor: '#52c41a', color: '#fff', padding: '10px 20px', borderRadius: '8px', border: 'none', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', boxShadow: '0 4px 12px rgba(82,196,26,0.3)' }}>{isAnalyzing ? '⏳ 数据急速挖掘与入库中...' : '📂 导入成绩单入库 (CSV/Excel)'}</button>
                        <input type="file" accept=".csv,.xls,.xlsx" onChange={async (e) => { const file = e.target.files[0]; if (!file) return; setIsAnalyzing(true); const formData = new FormData(); formData.append('file', file); try { const res = await fetch('http://localhost:8000/api/analyze_scores', { method: 'POST', body: formData }); const data = await res.json(); if (data.status === 'success') { setClassData({ radar: data.radar_data, bar: data.bar_data, weakest: data.weakest_subject, total: data.total_students }); alert("✅ 成绩已分析并成功录入数据库！学生可以登录查分了。"); } else { alert("分析失败：" + data.error); } } catch (err) { alert("请求失败，请检查后端运行状态！"); } finally { setIsAnalyzing(false); e.target.value = null; } }} style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', opacity: 0, cursor: 'pointer' }} />
                      </div>
                    </div>
@@ -557,7 +561,7 @@ export default function UserPortal() {
                   <div style={{ fontWeight: 'bold', color: '#333', marginBottom: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <div style={{ display: 'flex', alignItems: 'center' }}><span style={{ width: '24px', height: '24px', backgroundColor: '#1677ff', color: '#fff', borderRadius: '50%', display: 'flex', justifyContent: 'center', alignItems: 'center', marginRight: '8px', fontSize: '14px' }}>1</span>原题内容：</div>
                     <div style={{ position: 'relative', overflow: 'hidden', display: 'inline-block' }}>
-                      <button style={{ padding: '6px 12px', backgroundColor: '#f0f2f5', border: '1px solid #d9d9d9', borderRadius: '6px', cursor: 'pointer', fontSize: '13px', color: '#666' }}>📎 自动提取 Word/PDF</button>
+                      <button className="btn-hover" style={{ padding: '6px 12px', backgroundColor: '#f0f2f5', border: '1px solid #d9d9d9', borderRadius: '6px', cursor: 'pointer', fontSize: '13px', color: '#666' }}>📎 自动提取 Word/PDF</button>
                       <input type="file" accept=".pdf,.docx" onChange={async (e) => { const file = e.target.files[0]; if (!file) return; setQuestionText("正在拼命读取文档内容，请稍候..."); const formData = new FormData(); formData.append('file', file); try { const res = await fetch('http://localhost:8000/api/parse_question_file', { method: 'POST', body: formData }); const data = await res.json(); if (data.status === 'success') setQuestionText(data.text); else { alert("解析失败：" + data.error); setQuestionText(""); } } catch (err) { alert("网络错误！"); setQuestionText(""); } e.target.value = null; }} style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', opacity: 0, cursor: 'pointer' }} />
                     </div>
                   </div>
@@ -605,6 +609,7 @@ export default function UserPortal() {
                 </div>
 
                 <button
+                  className="btn-hover"
                   disabled={!questionText || !fileData || isGrading}
                   onClick={async () => {
                     setIsGrading(true); setGradingResult(null); setAnnotatedFile(null);
@@ -646,7 +651,7 @@ export default function UserPortal() {
                   ))}
 
                   {annotatedFile && (
-                    <button onClick={() => { const a = document.createElement('a'); a.href = annotatedFile; a.download = 'AI批注.docx'; a.click(); }} style={{ marginTop: '24px', padding: '12px 24px', width: '100%', backgroundColor: '#52c41a', color: '#fff', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', fontSize: '16px' }}>📥 下载 AI 批注原文件</button>
+                    <button className="btn-hover" onClick={() => { const a = document.createElement('a'); a.href = annotatedFile; a.download = 'AI批注.docx'; a.click(); }} style={{ marginTop: '24px', padding: '12px 24px', width: '100%', backgroundColor: '#52c41a', color: '#fff', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', fontSize: '16px' }}>📥 下载 AI 批注原文件</button>
                   )}
                 </div>
               )}
@@ -701,7 +706,7 @@ export default function UserPortal() {
                  {/* 🌟 核心：一键喂饭给 AI 的上传按钮 */}
                  {role === 'teacher' && (
                    <div style={{ position: 'relative', overflow: 'hidden' }}>
-                     <button style={{ padding: '8px 16px', backgroundColor: '#722ed1', color: '#fff', border: 'none', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', boxShadow: '0 4px 12px rgba(114,46,209,0.3)' }}>
+                     <button className="btn-hover" style={{ padding: '8px 16px', backgroundColor: '#722ed1', color: '#fff', border: 'none', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', boxShadow: '0 4px 12px rgba(114,46,209,0.3)' }}>
                        📚 喂给 AI 新课件 (PDF)
                      </button>
                      <input
@@ -757,7 +762,7 @@ export default function UserPortal() {
                  {/* 输入发送区 */}
                  <div style={{ display: 'flex', gap: '12px', marginTop: '16px', borderTop: '1px solid #ebeef5', paddingTop: '20px' }}>
                    <input type="text" value={inputText} onChange={(e) => setInputText(e.target.value)} onKeyPress={(e) => e.key === 'Enter' && handleSendMessage()} placeholder="输入你的问题，按回车键发送..." style={{ flex: 1, padding: '14px 16px', borderRadius: '8px', border: '1px solid #d9d9d9', outline: 'none', fontSize: '15px', transition: 'border 0.3s' }} onFocus={(e) => e.target.style.borderColor = '#1677ff'} onBlur={(e) => e.target.style.borderColor = '#d9d9d9'} />
-                   <button disabled={!inputText.trim() || isChatting} onClick={handleSendMessage} style={{ padding: '0 32px', backgroundColor: inputText.trim() && !isChatting ? '#1677ff' : '#ccc', color: '#fff', border: 'none', borderRadius: '8px', fontWeight: 'bold', fontSize: '15px', cursor: inputText.trim() && !isChatting ? 'pointer' : 'not-allowed', transition: 'all 0.3s' }}>发 送</button>
+                   <button className="btn-hover" disabled={!inputText.trim() || isChatting} onClick={handleSendMessage} style={{ padding: '0 32px', backgroundColor: inputText.trim() && !isChatting ? '#1677ff' : '#ccc', color: '#fff', border: 'none', borderRadius: '8px', fontWeight: 'bold', fontSize: '15px', cursor: inputText.trim() && !isChatting ? 'pointer' : 'not-allowed', transition: 'all 0.3s' }}>发 送</button>
                  </div>
                </div>
              </div>
@@ -767,11 +772,11 @@ export default function UserPortal() {
                 <div style={{ position: 'absolute', left: '105%', top: '0', width: '400px', height: '100%', backgroundColor: '#fff', borderRadius: '12px', boxShadow: '0 8px 32px rgba(0,0,0,0.15)', border: '1px solid #1677ff', zIndex: 100, display: 'flex', flexDirection: 'column', animation: 'fadeIn 0.4s ease-out' }}>
                   <div style={{ padding: '16px 20px', borderBottom: '1px solid #eee', display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#e6f4ff', borderRadius: '12px 12px 0 0' }}>
                     <div style={{ display: 'flex', alignItems: 'center' }}><span style={{ fontSize: '20px', marginRight: '8px' }}>📄</span><strong style={{ color: '#1677ff', fontSize: '16px' }}>A25 智能教研产出物</strong></div>
-                    <button onClick={() => setShowDocPreview(false)} style={{ border: 'none', background: 'none', cursor: 'pointer', fontSize: '22px', color: '#999' }}>×</button>
+                    <button className="btn-hover" onClick={() => setShowDocPreview(false)} style={{ border: 'none', background: 'none', cursor: 'pointer', fontSize: '22px', color: '#999' }}>×</button>
                   </div>
                   <div style={{ padding: '24px', overflowY: 'auto', flex: 1, fontSize: '14px', lineHeight: '1.8', color: '#333', whiteSpace: 'pre-wrap', backgroundColor: '#fafafa' }}>{generatedDoc}</div>
                   <div style={{ padding: '16px 24px', borderTop: '1px solid #eee', backgroundColor: '#fff', borderRadius: '0 0 12px 12px' }}>
-                    <button onClick={handleDownloadDoc} disabled={isDownloading} style={{ width: '100%', padding: '12px', backgroundColor: isDownloading ? '#95de64' : '#52c41a', color: '#fff', border: 'none', borderRadius: '8px', fontWeight: 'bold', fontSize: '15px', cursor: isDownloading ? 'not-allowed' : 'pointer', boxShadow: '0 4px 12px rgba(82,196,26,0.3)', transition: 'all 0.3s' }}>
+                    <button className="btn-hover" onClick={handleDownloadDoc} disabled={isDownloading} style={{ width: '100%', padding: '12px', backgroundColor: isDownloading ? '#95de64' : '#52c41a', color: '#fff', border: 'none', borderRadius: '8px', fontWeight: 'bold', fontSize: '15px', cursor: isDownloading ? 'not-allowed' : 'pointer', boxShadow: '0 4px 12px rgba(82,196,26,0.3)', transition: 'all 0.3s' }}>
                       {isDownloading ? '⏳ 正在云端渲染 Word 并下载...' : '📥 一键导出排版 Word 文档'}
                     </button>
                   </div>
