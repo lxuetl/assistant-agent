@@ -6,8 +6,8 @@
 }
 
 html, body, #root {
-  width: 100vw;
-  height: 100vh;
+  width: 100%;
+  height: 100%;
   /* 🔪 绝对不能有 min-width: 320px 这种东西！它会把 90px 的画框撑爆！ */
   overflow: hidden !important; /* 强制斩断多余的滚动条 */
   background-color: transparent !important; /* 确保悬浮球背景透明 */

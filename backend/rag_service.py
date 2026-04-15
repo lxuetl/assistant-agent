@@ -1,17 +1,24 @@
 #检索chroma_db中的内容并根据它来回答
 
 import os
+from dotenv import load_dotenv
 from langchain_chroma import Chroma
 from langchain_openai import OpenAIEmbeddings, ChatOpenAI
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.runnables import RunnablePassthrough
 from langchain_core.output_parsers import StrOutputParser
 
+load_dotenv()
+
+DASHSCOPE_BASE_URL = os.getenv("DASHSCOPE_BASE_URL", "https://dashscope.aliyuncs.com/compatible-mode/v1")
+DASHSCOPE_API_KEY = os.getenv("DASHSCOPE_API_KEY") or os.getenv("OPENAI_API_KEY")
+
 # 配置翻译官
 embeddings = OpenAIEmbeddings(
-    base_url="https://dashscope.aliyuncs.com/compatible-mode/v1",
+    base_url=DASHSCOPE_BASE_URL,
     model="text-embedding-v3",
-    check_embedding_ctx_length=False
+    check_embedding_ctx_length=False,
+    api_key=DASHSCOPE_API_KEY,
 )
 
 # 这里直接指向本地的 chroma_db 文件夹
@@ -20,8 +27,9 @@ vectorstore = Chroma(persist_directory="./chroma_db", embedding_function=embeddi
 retriever = vectorstore.as_retriever(search_kwargs={"k": 2})
 
 llm = ChatOpenAI(
-    base_url="https://dashscope.aliyuncs.com/compatible-mode/v1",
-    model="qwen3.5-flash"
+    base_url=DASHSCOPE_BASE_URL,
+    model="qwen3.5-flash",
+    api_key=DASHSCOPE_API_KEY,
 )
 
 #制定结构化的 Prompt 提示词模板

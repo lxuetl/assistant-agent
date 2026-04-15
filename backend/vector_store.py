@@ -3,14 +3,20 @@ from langchain_community.document_loaders import PyMuPDFLoader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_openai import OpenAIEmbeddings
 from langchain_chroma import Chroma
+from dotenv import load_dotenv
+
+load_dotenv()
+
+DASHSCOPE_BASE_URL = os.getenv("DASHSCOPE_BASE_URL", "https://dashscope.aliyuncs.com/compatible-mode/v1")
+DASHSCOPE_API_KEY = os.getenv("DASHSCOPE_API_KEY") or os.getenv("OPENAI_API_KEY")
 
 # 配置阿里云的“文本向量化”模型
 embeddings = OpenAIEmbeddings(
-    base_url="https://dashscope.aliyuncs.com/compatible-mode/v1",
+    base_url=DASHSCOPE_BASE_URL,
     model="text-embedding-v3", 
     check_embedding_ctx_length=False,
     chunk_size=10,  # 🌟 双保险：强制告诉底层库，每次最多只发 10 条
-    api_key="sk-6836300a7db64bceb5ab29f597ff3ea9",
+    api_key=DASHSCOPE_API_KEY,
 )
 
 # 定义本地数据库的存放文件夹

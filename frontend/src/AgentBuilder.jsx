@@ -20,7 +20,7 @@ export default function AgentBuilder({ onClose, role, onSaveSuccess }) {
     setIsEnhancing(true);
     try {
       // 调用我们即将写好的后端接口
-      const res = await fetch('http://localhost:8000/api/enhance_prompt', {
+      const res = await fetch('/api/enhance_prompt', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ short_desc: formData.shortDesc, role: role })

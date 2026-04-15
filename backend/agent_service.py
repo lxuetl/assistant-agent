@@ -4,9 +4,15 @@ import asyncio
 import json
 import re
 from typing import AsyncGenerator, List, Dict, Any
+from dotenv import load_dotenv
 from langchain_openai import ChatOpenAI
 from langchain_core.messages import HumanMessage, SystemMessage, ToolMessage, AIMessage
 from ocr_service import extract_text_from_images
+
+load_dotenv()
+
+DASHSCOPE_BASE_URL = os.getenv("DASHSCOPE_BASE_URL", "https://dashscope.aliyuncs.com/compatible-mode/v1")
+DASHSCOPE_API_KEY = os.getenv("DASHSCOPE_API_KEY") or os.getenv("OPENAI_API_KEY")
 
 
 # ==========================================
@@ -15,13 +21,15 @@ from ocr_service import extract_text_from_images
 class ModelFactory:
     @staticmethod
     def create_chat_model():
+        if not DASHSCOPE_API_KEY:
+            raise ValueError("缺少 DASHSCOPE_API_KEY 或 OPENAI_API_KEY 环境变量")
         return ChatOpenAI(
-            base_url="https://dashscope.aliyuncs.com/compatible-mode/v1",
+            base_url=DASHSCOPE_BASE_URL,
             model="qwen3.5-35b-a3b",
             temperature=0,
             streaming=True,
             verbose=False,
-            api_key="sk-6836300a7db64bceb5ab29f597ff3ea9" 
+            api_key=DASHSCOPE_API_KEY,
         )
 
 

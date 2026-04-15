@@ -98,22 +98,47 @@ function App() {
   // ==============================================
   // 原有的出题与聊天逻辑（完全保持不变）
   // ==============================================
+  const normalizeQuiz = (raw) => {
+    if (!raw || raw.error) return raw;
+    const question = raw.question || '';
+    let options = raw.options || [];
+    if (Array.isArray(options) && options.length && typeof options[0] === 'string') {
+      options = options.map((line) => {
+        const s = String(line).trim();
+        const m = s.match(/^([A-Da-d])[\.\、\:\：]\s*(.+)$/);
+        if (m) return { key: m[1].toUpperCase(), value: m[2] };
+        if (s.length >= 2 && /^[A-Da-d]/.test(s[0])) return { key: s[0].toUpperCase(), value: s.slice(1).replace(/^[\.\、\:\：]\s*/, '') };
+        return { key: s.slice(0, 1), value: s };
+      });
+    }
+    const answer = raw.answer == null ? raw.answer : String(raw.answer).trim().toUpperCase().charAt(0);
+    return { ...raw, question, options, answer };
+  };
+
   const handleGenerateQuiz = async () => {
     if (!pageContext) { alert("还没抓取到课件内容，稍等一下哦！"); return; }
     setQuizLoading(true); setQuiz(null); setSelectedOption(null); setShowExplanation(false);
     try {
       const response = await fetch('/api/quiz', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ page_context: pageContext })
+        body: JSON.stringify({
+          page_context: {
+            title: pageContext.title,
+            content: pageContext.content,
+            images: pageContext.images,
+            url: pageContext.url
+          }
+        })
       });
       const data = await response.json();
-      if (data.error) alert(data.error); else setQuiz(data);
+      if (data.error) alert(data.error); else setQuiz(normalizeQuiz(data));
     } catch (error) { console.error(error); alert("出题请求失败"); } finally { setQuizLoading(false); }
   };
 
   const handleCloseQuiz = () => {
     if (showExplanation && selectedOption && quiz) {
-      const isCorrect = selectedOption === quiz.answer;
+      const pick = (x) => String(x || '').trim().toUpperCase().charAt(0);
+      const isCorrect = pick(selectedOption) === pick(quiz.answer);
       setChatLog(prev => [...prev,
         { role: 'user', content: `[系统记录] 我刚刚完成测试。\n题目：${quiz.question}\n我的回答：${selectedOption}（${isCorrect ? '正确 🎉' : '错误 ❌'}）` },
         { role: 'ai', content: isCorrect ? '太棒了！看来你对这部分知识掌握得很扎实！' : '没关系，错题是最好的老师！解析看懂了吗？' }
@@ -139,19 +164,36 @@ function App() {
 
   const sendMessage = async () => {
     if (!input.trim()) return;
-    const currentInput = input;
+    const currentInput = input.trim();
     setChatLog(prev => [...prev, { role: 'user', content: currentInput }, { role: 'ai', content: '' }]);
-    setInput(''); setIsLoading(true);
+    setInput('');
+    setIsLoading(true);
 
-    // 🌟 核心修改 2：发聊天消息时，带上全套身份钢印
+    const apiMessages = [...chatLog, { role: 'user', content: currentInput }].map((m) => ({
+      role: m.role === 'user' ? 'user' : 'ai',
+      content: m.content
+    }));
+
+    const embedPlatform =
+      pageContext?.platform === 'yuketang'
+        ? 'yuketang'
+        : pageContext?.platform === 'chaoxing'
+          ? 'chaoxing'
+          : 'web';
+
     const requestBody = {
-      user_id: "student_888",      // 测试用 ID
-      course_id: "math_101",       // 测试用课程 ID
-      platform: "chaoxing",        // 平台标记
-      message: currentInput
+      user_id: 'student_888',
+      course_id: 'math_101',
+      platform: embedPlatform,
+      messages: apiMessages
     };
-    if (pageContext && pageContext.content) {
-      requestBody.page_context = { title: pageContext.title, content: pageContext.content };
+    if (pageContext) {
+      requestBody.page_context = {
+        title: pageContext.title,
+        content: pageContext.content,
+        images: pageContext.images,
+        url: pageContext.url
+      };
     }
 
     try {
@@ -160,13 +202,26 @@ function App() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(requestBody)
       });
-      const reader = res.body.getReader(); const decoder = new TextDecoder(); let buf = "";
+      if (!res.ok || !res.body) throw new Error('bad response');
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buf = '';
       while (true) {
-        const { done, value } = await reader.read(); if (done) break; buf += decoder.decode(value);
-        setChatLog(prev => { const c = [...prev]; c[c.length - 1].content = buf; return c; });
+        const { done, value } = await reader.read();
+        if (done) break;
+        buf += decoder.decode(value, { stream: true });
+        setChatLog((prev) => {
+          const c = [...prev];
+          c[c.length - 1].content = buf;
+          return c;
+        });
       }
-    } catch (error) {
-      setChatLog(prev => { const c = [...prev]; c[c.length - 1].content = '连接超时'; return c; });
+    } catch {
+      setChatLog((prev) => {
+        const c = [...prev];
+        c[c.length - 1].content = '连接超时';
+        return c;
+      });
     } finally {
       setIsLoading(false);
     }
@@ -180,13 +235,14 @@ function App() {
       ref={agentRef}
       onMouseDown={handleMouseDown}
       style={{
-        width: '100vw',
-        height: '100vh',
+        width: '100%',
+        height: '100%',
+        minWidth: 0,
+        minHeight: 0,
         display: 'flex',
-        justifyContent: 'center',
-        alignItems: 'center',
+        justifyContent: 'flex-end',
+        alignItems: 'flex-end',
         userSelect: 'none',
-        // 彻底透明的底色，不干扰 iframe
         backgroundColor: 'transparent'
       }}
     >
@@ -208,9 +264,9 @@ function App() {
       ) : (
         // 👇 展开状态：聊天面板 👇
         <div style={{
-          width: '90%', height: '90%', backgroundColor: '#fff', borderRadius: '16px',
-          boxShadow: '0 8px 32px rgba(0, 0, 0, 0.15)', display: 'flex', flexDirection: 'column',
-          overflow: 'hidden', border: '1px solid #ebeef5'
+          width: '100%', height: '100%', backgroundColor: '#fff', borderRadius: '12px',
+          boxShadow: '0 10px 40px rgba(0, 0, 0, 0.18)', display: 'flex', flexDirection: 'column',
+          overflow: 'hidden', border: '1px solid rgba(0,0,0,0.06)'
         }}>
           {/* 头部导航栏 (加上 .drag-handle 标志以允许拖拽) */}
           <div className="drag-handle" style={{
@@ -234,7 +290,10 @@ function App() {
           {pageContext && (
             <div style={{ backgroundColor: '#e6f4ff', padding: '8px 16px', fontSize: '12px', color: '#1677ff', borderBottom: '1px solid #91caff', display: 'flex', alignItems: 'center' }}>
               <span style={{ marginRight: '6px' }}>👁️</span>
-              <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>AI 已获取网页: {pageContext.title}</span>
+              <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                {pageContext.platform === 'yuketang' ? '【雨课堂】' : pageContext.platform === 'chaoxing' ? '【学习通】' : '【课件】'}
+                AI 已获取: {pageContext.title}
+              </span>
             </div>
           )}
 
@@ -245,32 +304,42 @@ function App() {
                   {quizLoading ? "🧠 AI 正在查阅课件出题中..." : "📝 根据当前网页考考我"}
                 </button>
               )}
-              {quiz && (
+              {quiz && (() => {
+                const pick = (x) => String(x || '').trim().toUpperCase().charAt(0);
+                const answeredCorrect = pick(selectedOption) === pick(quiz.answer);
+                return (
                 <div style={{ marginTop: '5px', padding: '15px', backgroundColor: '#fafafa', border: '1px solid #e8e8e8', borderRadius: '8px', position: 'relative' }}>
                   <button onClick={handleCloseQuiz} style={{ position: 'absolute', top: '10px', right: '10px', background: 'transparent', border: 'none', cursor: 'pointer', fontSize: '18px', color: '#999' }}>✖</button>
                   <h4 style={{ margin: '0 0 12px 0', fontSize: '14px', color: '#333', paddingRight: '20px', lineHeight: '1.5' }}>{quiz.question}</h4>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                    {quiz.options.map((opt) => (
-                      <label key={opt.key} style={{ display: 'block', padding: '8px 10px', cursor: showExplanation ? 'default' : 'pointer', backgroundColor: selectedOption === opt.key ? '#e6f4ff' : '#fff', border: `1px solid ${selectedOption === opt.key ? '#91caff' : '#d9d9d9'}`, borderRadius: '6px', fontSize: '13px' }}>
-                        <input type="radio" name="quizOption" value={opt.key} onChange={() => setSelectedOption(opt.key)} disabled={showExplanation} style={{ marginRight: '8px' }} />
-                        <strong>{opt.key}.</strong> {opt.value}
-                      </label>
-                    ))}
+                    {quiz.options.map((opt, idx) => {
+                      const key = typeof opt === 'string'
+                        ? (String(opt).trim().match(/^([A-Da-d])/)?.[1] || String(idx)).toUpperCase()
+                        : String(opt.key).toUpperCase();
+                      const text = typeof opt === 'string' ? String(opt).trim() : String(opt.value);
+                      return (
+                        <label key={key + idx} style={{ display: 'block', padding: '8px 10px', cursor: showExplanation ? 'default' : 'pointer', backgroundColor: selectedOption === key ? '#e6f4ff' : '#fff', border: `1px solid ${selectedOption === key ? '#91caff' : '#d9d9d9'}`, borderRadius: '6px', fontSize: '13px' }}>
+                          <input type="radio" name="quizOption" value={key} onChange={() => setSelectedOption(key)} disabled={showExplanation} style={{ marginRight: '8px' }} />
+                          <strong>{key}.</strong> {typeof opt === 'string' ? text.replace(/^[A-Da-d][\.\、\:\：]\s*/, '') : text}
+                        </label>
+                      );
+                    })}
                   </div>
                   {!showExplanation && selectedOption && (
                     <button onClick={() => setShowExplanation(true)} style={{ marginTop: '15px', width: '100%', padding: '10px', backgroundColor: '#1677ff', color: '#fff', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '14px', fontWeight: 'bold' }}>提交答案</button>
                   )}
                   {showExplanation && (
                     <div style={{ marginTop: '15px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                      <div style={{ padding: '12px', borderRadius: '6px', backgroundColor: selectedOption === quiz.answer ? '#f6ffed' : '#fff2f0', border: `1px solid ${selectedOption === quiz.answer ? '#b7eb8f' : '#ffccc7'}` }}>
-                        <p style={{ margin: '0 0 8px 0', fontSize: '14px', fontWeight: 'bold', color: selectedOption === quiz.answer ? '#389e0d' : '#cf1322' }}>{selectedOption === quiz.answer ? "🎉 回答正确！" : `❌ 回答错误。正确答案是：${quiz.answer}`}</p>
+                      <div style={{ padding: '12px', borderRadius: '6px', backgroundColor: answeredCorrect ? '#f6ffed' : '#fff2f0', border: `1px solid ${answeredCorrect ? '#b7eb8f' : '#ffccc7'}` }}>
+                        <p style={{ margin: '0 0 8px 0', fontSize: '14px', fontWeight: 'bold', color: answeredCorrect ? '#389e0d' : '#cf1322' }}>{answeredCorrect ? "🎉 回答正确！" : `❌ 回答错误。正确答案是：${pick(quiz.answer)}`}</p>
                         <p style={{ margin: 0, fontSize: '13px', color: '#555', lineHeight: '1.6' }}><strong>解析：</strong>{quiz.explanation}</p>
                       </div>
                       <button onClick={handleCloseQuiz} style={{ padding: '10px', backgroundColor: '#fff', border: '1px solid #1677ff', color: '#1677ff', borderRadius: '6px', cursor: 'pointer', fontSize: '13px', fontWeight: 'bold' }}>完成练习并继续对话</button>
                     </div>
                   )}
                 </div>
-              )}
+                );
+              })()}
             </div>
           )}
 
