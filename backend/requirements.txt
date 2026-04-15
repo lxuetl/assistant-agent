@@ -13,3 +13,7 @@ PyMuPDF
 python-multipart
 aiofiles
 langchain-chroma
+langchain-text-splitters
+sqlalchemy
+requests
+openpyxl
