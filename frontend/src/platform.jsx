@@ -69,7 +69,7 @@ export default function UserPortal() {
   // 2. 核心拦截器：学生登录查分
   useEffect(() => {
     if (isLoggedIn && role === 'student' && accountId) {
-      fetch(`http://localhost:8000/api/my_score?account_id=${accountId}`)
+      fetch(`/api/my_score?account_id=${accountId}`)
         .then(res => res.json())
         .then(data => {
           if (data.status === 'success') {
@@ -113,7 +113,7 @@ export default function UserPortal() {
     }
     
     try {
-      const res = await fetch('http://localhost:8000/api/register', {
+      const res = await fetch('/api/register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(registerData)
@@ -148,7 +148,7 @@ export default function UserPortal() {
     }
 
     try {
-      const res = await fetch('http://localhost:8000/api/chat', {
+      const res = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -218,7 +218,7 @@ export default function UserPortal() {
     if (!generatedDoc || isDownloading) return;
     setIsDownloading(true);
     try {
-      const res = await fetch('http://localhost:8000/api/export_doc', {
+      const res = await fetch('/api/export_doc', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ content: generatedDoc })
@@ -280,7 +280,7 @@ export default function UserPortal() {
                 }
                 
                 try {
-                  const res = await fetch('http://localhost:8000/api/login', {
+                  const res = await fetch('/api/login', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
@@ -511,7 +511,7 @@ export default function UserPortal() {
                      <h2 style={{ margin: 0, color: '#333', display: 'flex', alignItems: 'center' }}><span style={{fontSize:'28px', marginRight:'8px'}}>👨‍🏫</span> 25计算机班 - 动态学情诊断看板</h2>
                      <div style={{ position: 'relative', overflow: 'hidden' }}>
                        <button style={{ backgroundColor: '#52c41a', color: '#fff', padding: '10px 20px', borderRadius: '8px', border: 'none', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', boxShadow: '0 4px 12px rgba(82,196,26,0.3)' }}>{isAnalyzing ? '⏳ 数据急速挖掘与入库中...' : '📂 导入成绩单入库 (CSV/Excel)'}</button>
-                       <input type="file" accept=".csv,.xls,.xlsx" onChange={async (e) => { const file = e.target.files[0]; if (!file) return; setIsAnalyzing(true); const formData = new FormData(); formData.append('file', file); try { const res = await fetch('http://localhost:8000/api/analyze_scores', { method: 'POST', body: formData }); const data = await res.json(); if (data.status === 'success') { setClassData({ radar: data.radar_data, bar: data.bar_data, weakest: data.weakest_subject, total: data.total_students }); alert("✅ 成绩已分析并成功录入数据库！学生可以登录查分了。"); } else { alert("分析失败：" + data.error); } } catch (err) { alert("请求失败，请检查后端运行状态！"); } finally { setIsAnalyzing(false); e.target.value = null; } }} style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', opacity: 0, cursor: 'pointer' }} />
+                      <input type="file" accept=".csv,.xls,.xlsx" onChange={async (e) => { const file = e.target.files[0]; if (!file) return; setIsAnalyzing(true); const formData = new FormData(); formData.append('file', file); try { const res = await fetch('/api/analyze_scores', { method: 'POST', body: formData }); const data = await res.json(); if (data.status === 'success') { setClassData({ radar: data.radar_data, bar: data.bar_data, weakest: data.weakest_subject, total: data.total_students }); alert("✅ 成绩已分析并成功录入数据库！学生可以登录查分了。"); } else { alert("分析失败：" + data.error); } } catch (err) { alert("请求失败，请检查后端运行状态！"); } finally { setIsAnalyzing(false); e.target.value = null; } }} style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', opacity: 0, cursor: 'pointer' }} />
                      </div>
                    </div>
                    {classData.total > 0 ? (
@@ -558,7 +558,7 @@ export default function UserPortal() {
                     <div style={{ display: 'flex', alignItems: 'center' }}><span style={{ width: '24px', height: '24px', backgroundColor: '#1677ff', color: '#fff', borderRadius: '50%', display: 'flex', justifyContent: 'center', alignItems: 'center', marginRight: '8px', fontSize: '14px' }}>1</span>原题内容：</div>
                     <div style={{ position: 'relative', overflow: 'hidden', display: 'inline-block' }}>
                       <button style={{ padding: '6px 12px', backgroundColor: '#f0f2f5', border: '1px solid #d9d9d9', borderRadius: '6px', cursor: 'pointer', fontSize: '13px', color: '#666' }}>📎 自动提取 Word/PDF</button>
-                      <input type="file" accept=".pdf,.docx" onChange={async (e) => { const file = e.target.files[0]; if (!file) return; setQuestionText("正在拼命读取文档内容，请稍候..."); const formData = new FormData(); formData.append('file', file); try { const res = await fetch('http://localhost:8000/api/parse_question_file', { method: 'POST', body: formData }); const data = await res.json(); if (data.status === 'success') setQuestionText(data.text); else { alert("解析失败：" + data.error); setQuestionText(""); } } catch (err) { alert("网络错误！"); setQuestionText(""); } e.target.value = null; }} style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', opacity: 0, cursor: 'pointer' }} />
+                      <input type="file" accept=".pdf,.docx" onChange={async (e) => { const file = e.target.files[0]; if (!file) return; setQuestionText("正在拼命读取文档内容，请稍候..."); const formData = new FormData(); formData.append('file', file); try { const res = await fetch('/api/parse_question_file', { method: 'POST', body: formData }); const data = await res.json(); if (data.status === 'success') setQuestionText(data.text); else { alert("解析失败：" + data.error); setQuestionText(""); } } catch (err) { alert("网络错误！"); setQuestionText(""); } e.target.value = null; }} style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', opacity: 0, cursor: 'pointer' }} />
                     </div>
                   </div>
                   <textarea value={questionText} onChange={(e) => setQuestionText(e.target.value)} placeholder="输入原题内容..." style={{ width: '100%', height: '100px', padding: '12px', borderRadius: '8px', border: '1px solid #d9d9d9', resize: 'vertical', outline: 'none' }} />
@@ -609,7 +609,7 @@ export default function UserPortal() {
                   onClick={async () => {
                     setIsGrading(true); setGradingResult(null); setAnnotatedFile(null);
                     try {
-                      const res = await fetch('http://localhost:8000/api/grade_homework', {
+                      const res = await fetch('/api/grade_homework', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ user_id: accountId || "demo", course_id: "demo", question_text: questionText, content_type: fileType, content: fileData })
@@ -716,7 +716,7 @@ export default function UserPortal() {
                          const formData = new FormData();
                          formData.append('file', file);
                          try {
-                           const res = await fetch('http://localhost:8000/api/upload_knowledge', {
+                           const res = await fetch('/api/upload_knowledge', {
                              method: 'POST',
                              body: formData
                            });
