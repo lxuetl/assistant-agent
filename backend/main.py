@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import desc
 from typing import Optional, List
 from fastapi import UploadFile, File
+from dotenv import load_dotenv
 import docx
 from docx.shared import RGBColor
 import fitz
@@ -27,6 +28,11 @@ from vector_store import build_vector_store
 #import win32com.client
 #import pythoncom
 import tempfile
+
+load_dotenv()
+
+DASHSCOPE_BASE_URL = os.getenv("DASHSCOPE_BASE_URL", "https://dashscope.aliyuncs.com/compatible-mode/v1")
+DASHSCOPE_API_KEY = os.getenv("DASHSCOPE_API_KEY") or os.getenv("OPENAI_API_KEY")
 
 # 1. 初始化应用和 Agent
 app = FastAPI(title="A25 Agent API")
@@ -283,8 +289,12 @@ async def parse_question_file(file: UploadFile = File(...)):
             if len(extracted_text.strip()) < 20:
                 print("🚨 检测到纯图片/扫描版 PDF！启动 OCR...")
                 extracted_text = ""
-                vision_llm = ChatOpenAI(base_url="https://dashscope.aliyuncs.com/compatible-mode/v1",
-                                        model="qwen-vl-max", temperature=0)
+                vision_llm = ChatOpenAI(
+                    base_url=DASHSCOPE_BASE_URL,
+                    model="qwen-vl-max",
+                    temperature=0,
+                    api_key=DASHSCOPE_API_KEY,
+                )
                 for page_num in range(len(pdf_document)):
                     page = pdf_document.load_page(page_num)
                     pix = page.get_pixmap(matrix=fitz.Matrix(2, 2))
