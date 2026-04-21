@@ -5,7 +5,7 @@ import os
 
 def check_database():
     # 1. 确认数据库名字（根据你 database.py 里的实际情况修改）
-    db_path = os.path.abspath("a25_data.db")
+    db_path = os.path.abspath("agent-gateway/a25_data.db")
 
     print("=" * 50)
     print(f"🔍 [雷达扫描] 正在检查数据库文件绝对路径:\n👉 {db_path}")

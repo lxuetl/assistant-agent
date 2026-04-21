@@ -3,7 +3,8 @@ import react from '@vitejs/plugin-react'
 
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, '.', '')
-  const proxyTarget = env.VITE_PROXY_TARGET || 'http://localhost:8000'
+  // 👇 核心修改：把 localhost 改成 Docker 内网的网关服务名
+const proxyTarget = env.VITE_PROXY_TARGET || 'http://agent-gateway:8000'
 
   return {
     plugins: [react()],

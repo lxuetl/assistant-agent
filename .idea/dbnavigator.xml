@@ -11,6 +11,9 @@
   </component>
   <component name="DBNavigator.Project.DatabaseAssistantManager">
     <assistants>
+      <assistant-state connection-id="f7988c0d-f80f-4358-862b-88b2c65f1b81" assistant-type="SELECT_AI" default-profile-name="" selected-chat-id="" availability="UNAVAILABLE" acknowledgement="NONE">
+        <tools />
+      </assistant-state>
       <assistant-state connection-id="f7988c0d-f80f-4358-862b-88b2c65f1b81" assistant-type="PUBLIC" default-profile-name="" selected-chat-id="DEEA9868891A4B49BEC43A91BF5904E4" availability="AVAILABLE" acknowledgement="ENGAGED" selected="true">
         <chats>
           <chat id="DEEA9868891A4B49BEC43A91BF5904E4" title="" session-signature="" timestamp="1774319973168">
@@ -20,13 +23,10 @@
         </chats>
         <tools />
       </assistant-state>
-      <assistant-state connection-id="f7988c0d-f80f-4358-862b-88b2c65f1b81" assistant-type="SELECT_AI" default-profile-name="" selected-chat-id="" availability="UNAVAILABLE" acknowledgement="NONE">
+      <assistant-state connection-id="115b3192-9b94-4ffe-b2b7-e2722d7201a6" assistant-type="SELECT_AI" default-profile-name="" selected-chat-id="" availability="UNAVAILABLE" acknowledgement="NONE">
         <tools />
       </assistant-state>
       <assistant-state connection-id="115b3192-9b94-4ffe-b2b7-e2722d7201a6" assistant-type="PUBLIC" default-profile-name="" selected-chat-id="" availability="AVAILABLE" acknowledgement="NONE" selected="true">
-        <tools />
-      </assistant-state>
-      <assistant-state connection-id="115b3192-9b94-4ffe-b2b7-e2722d7201a6" assistant-type="SELECT_AI" default-profile-name="" selected-chat-id="" availability="UNAVAILABLE" acknowledgement="NONE">
         <tools />
       </assistant-state>
     </assistants>
@@ -52,10 +52,7 @@
     <last-used-providers />
   </component>
   <component name="DBNavigator.Project.DatabaseFileManager">
-    <open-files>
-      <object connection-id="f7988c0d-f80f-4358-862b-88b2c65f1b81" object-ref="schemas/a25_data/tables/chat_histories" />
-      <object connection-id="f7988c0d-f80f-4358-862b-88b2c65f1b81" object-ref="schemas/a25_data/tables/quiz_records" />
-    </open-files>
+    <open-files />
   </component>
   <component name="DBNavigator.Project.DatabasePrerequisiteManager">
     <prerequisites />
@@ -75,6 +72,9 @@
   <component name="DBNavigator.Project.ObjectQuickFilterManager">
     <last-used-operator value="EQUAL" />
     <filters />
+  </component>
+  <component name="DBNavigator.Project.ParserDiagnosticsManager">
+    <diagnostics-history />
   </component>
   <component name="DBNavigator.Project.Settings">
     <connections>

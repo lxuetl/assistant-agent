@@ -235,13 +235,13 @@ function App() {
       ref={agentRef}
       onMouseDown={handleMouseDown}
       style={{
-        width: '100%',
-        height: '100%',
+        width: '100vw',
+        height: '100vh',
         minWidth: 0,
         minHeight: 0,
         display: 'flex',
-        justifyContent: 'flex-end',
-        alignItems: 'flex-end',
+        justifyContent: 'center',
+        alignItems: 'center',
         userSelect: 'none',
         backgroundColor: 'transparent'
       }}
@@ -264,7 +264,7 @@ function App() {
       ) : (
         // 👇 展开状态：聊天面板 👇
         <div style={{
-          width: '100%', height: '100%', backgroundColor: '#fff', borderRadius: '12px',
+          width: '90%', height: '90%', backgroundColor: '#fff', borderRadius: '12px',
           boxShadow: '0 10px 40px rgba(0, 0, 0, 0.18)', display: 'flex', flexDirection: 'column',
           overflow: 'hidden', border: '1px solid rgba(0,0,0,0.06)'
         }}>

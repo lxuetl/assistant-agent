@@ -1,14 +1,12 @@
 from fastapi import FastAPI, HTTPException, Depends, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse, JSONResponse
-from pydantic import BaseModel
 from sqlalchemy.orm import Session
 from sqlalchemy import desc
 from typing import Optional, List
 from fastapi import UploadFile, File
 from dotenv import load_dotenv
 import docx
-from docx.shared import RGBColor
 import fitz
 import io
 import pandas as pd
@@ -27,7 +25,6 @@ from vector_store import build_vector_store
 
 #import win32com.client
 #import pythoncom
-import tempfile
 
 load_dotenv()
 

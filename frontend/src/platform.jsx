@@ -6,7 +6,7 @@ import AgentBuilder from './AgentBuilder';
 
 export default function UserPortal() {
   // ==========================================
-  // 🌟 全局状态：控制是否登录以及当前身份
+  //  全局状态：控制是否登录以及当前身份
   // ========================================== 
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [role, setRole] = useState('student');
@@ -19,7 +19,7 @@ export default function UserPortal() {
     role: 'student'
   });
   // ==========================================
-  // 🌟 内部状态：A25 主功能区状态
+  //  内部状态：A25 主功能区状态
   // ==========================================
   const [activeTab, setActiveTab] = useState('report');
   const [isAnalyzing, setIsAnalyzing] = useState(false);
@@ -35,7 +35,7 @@ export default function UserPortal() {
   const [annotatedFile, setAnnotatedFile] = useState(null);
 
   // ==========================================
-  // 🌟 AI 助手核心状态与联动逻辑
+  //  AI 助手核心状态与联动逻辑
   // ==========================================
   const [messages, setMessages] = useState([
     { role: 'assistant', content: '你好！我是 A25 智能助教 🤖。系统检测到你最近的学习状态不错，今天遇到什么难题了吗？（你可以直接向我提问，或者让我帮你总结知识点）' }
@@ -45,13 +45,13 @@ export default function UserPortal() {
   const chatEndRef = useRef(null);
   const [hasPromptedWeakness, setHasPromptedWeakness] = useState(false);
 
-  // 🌟 Agent 任务产出物状态
+  //  Agent 任务产出物状态
   const [generatedDoc, setGeneratedDoc] = useState('');
   const [showDocPreview, setShowDocPreview] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
 
   // ==========================================
-  // 🌟 智能体构建舱控制与列表状态
+  //  智能体构建舱控制与列表状态
   // ==========================================
   const [showBuilder, setShowBuilder] = useState(false);
   // 存放所有自定义的智能体
@@ -91,12 +91,12 @@ export default function UserPortal() {
       if (role === 'student') {
         proactiveMessage = {
           role: 'assistant',
-          content: `🚨 【个人学情诊断】\n${targetName}，系统底层调取了你在数据库的成绩画像，发现你在《${targetWeakest}》模块存在明显薄弱环节。\n\n作为你的专属AI助教，我已经为你调取了该知识点的核心考纲。需要我立刻为你出两道针对性的实战题练练手吗？💪`
+          content: `【个人学情诊断】\n${targetName}，系统底层调取了你在数据库的成绩画像，发现你在《${targetWeakest}》模块存在明显薄弱环节。\n\n作为你的专属AI助教，我已经为你调取了该知识点的核心考纲。需要我立刻为你出两道针对性的实战题练练手吗？`
         };
       } else {
         proactiveMessage = {
           role: 'assistant',
-          content: `📊 【班级学情诊断报告】\n${targetName}，系统已完成当前班级成绩单的深度挖掘。数据显示，全班在《${targetWeakest}》模块存在集体性的知识薄弱。\n\n💡 智能教学干预建议：\n1. 建议在下节课安排 15-20 分钟的专项复习。\n2. 是否需要我为您一键生成针对该薄弱点的【补救教案】或【专项随堂测验】发放给学生？`
+          content: `【班级学情诊断报告】\n${targetName}，系统已完成当前班级成绩单的深度挖掘。数据显示，全班在《${targetWeakest}》模块存在集体性的知识薄弱。\n\n 智能教学干预建议：\n1. 建议在下节课安排 15-20 分钟的专项复习。\n2. 是否需要我为您一键生成针对该薄弱点的【补救教案】或【专项随堂测验】发放给学生？`
         };
       }
 
@@ -132,13 +132,29 @@ export default function UserPortal() {
     }
   };
 
-  // 5. 发送消息核心逻辑
+// 5. 发送消息核心逻辑
   const handleSendMessage = async () => {
     if (!inputText.trim() || isChatting) return;
 
-    const userText = inputText;
-    const newMessages = [...messages, { role: 'user', content: userText }];
-    setMessages([...newMessages, { role: 'assistant', content: '' }]);
+    const userText = inputText.trim();
+
+    // ==========================================
+    // 🌟 核心黑科技：指令增强 (暗度陈仓)
+    // ==========================================
+    let enhancedText = userText;
+
+    // 如果用户输入了生成方案的意图，系统自动在底层帮他把【科目】和【格式要求】补齐！
+    if (userText.includes("生成补救方案") || userText.includes("补救教案")) {
+      const targetWeakest = role === 'student' ? myScoreData.weakest : classData.weakest;
+      if (targetWeakest && targetWeakest !== '暂无') {
+        enhancedText = `根据刚才的学情诊断，薄弱点是《${targetWeakest}》。请结合你的专业知识，立刻为我生成针对该薄弱点的【补救教案】。正文前后必须加标记：<<<PLAN_START>>> 和 <<<PLAN_END>>>`;
+        console.log(" [指令增强] 已将用户指令扩写为:", enhancedText);
+      }
+    }
+
+    // 🌟 页面上依然显示用户原本输入的短文字（保持界面整洁）
+    const uiMessages = [...messages, { role: 'user', content: userText }];
+    setMessages([...uiMessages, { role: 'assistant', content: '' }]);
     setInputText('');
     setIsChatting(true);
 
@@ -147,12 +163,15 @@ export default function UserPortal() {
       setGeneratedDoc('');
     }
 
+    // 🌟 发给后端的则是增强后的长指令（带上下文的 apiMessages）
+    const apiMessages = [...messages, { role: 'user', content: enhancedText }];
+
     try {
       const res = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          messages: newMessages,
+          messages: apiMessages, //  注意：这里发送的是被增强过的 apiMessages
           user_id: accountId || (role === 'student' ? 'student_001' : 'teacher_001'),
           course_id: 'default_course',
           platform: 'web',
@@ -175,6 +194,7 @@ export default function UserPortal() {
           const chunk = decoder.decode(value, { stream: true });
           aiFullReply += chunk;
 
+          // 🌟 触发侧边栏文档渲染
           if (aiFullReply.includes('<<<PLAN_START>>>')) {
             const parts = aiFullReply.split('<<<PLAN_START>>>');
             const chatDisplay = parts[0];
@@ -189,7 +209,7 @@ export default function UserPortal() {
 
             setMessages(prev => {
               const updated = [...prev];
-              updated[updated.length - 1].content = chatDisplay.trim() + "\n\n(📄 智能文档正在右侧工作区生成中...)";
+              updated[updated.length - 1].content = chatDisplay.trim() + "\n\n( 智能教研产出物正在右侧工作区生成中...)";
               return updated;
             });
           } else {
@@ -205,7 +225,7 @@ export default function UserPortal() {
       console.error(err);
       setMessages(prev => {
         const updated = [...prev];
-        updated[updated.length - 1].content = '❌ 神经网络连接波动，请检查 FastAPI 后端或大模型密钥是否正常。';
+        updated[updated.length - 1].content = ' 神经网络连接波动，请检查 FastAPI 后端或大模型密钥是否正常。';
         return updated;
       });
     } finally {
@@ -236,7 +256,7 @@ export default function UserPortal() {
       a.remove();
       window.URL.revokeObjectURL(url);
     } catch (err) {
-      alert("❌ 导出 Word 失败，请检查后端是否配置了导出接口。");
+      alert(" 导出 Word 失败，请检查后端是否配置了导出接口。");
     } finally {
       setIsDownloading(false);
     }
@@ -244,179 +264,211 @@ export default function UserPortal() {
 
   const jumpToPlatform = (url) => { window.open(url, '_blank'); };
 
-  // ==========================================
-  // 🎨 独立登录页 UI (未登录时显示)
-  // ==========================================
+
+  // 独立登录页 UI
+  //gemini辅助生成
   if (!isLoggedIn) {
     return (
-      <div style={{ display: 'flex', height: '100vh', width: '100vw', backgroundImage: 'url(/images/background.png)',backgroundSize: 'cover',backgroundPosition: 'center',backgroundRepeat: 'no-repeat', justifyContent: 'center', alignItems: 'center', fontFamily: 'NSimSun' }}>
-        <div style={{ backgroundColor: '#fff', width: '400px', borderRadius: '16px', boxShadow: '0 8px 24px rgba(0,0,0,0.08)', overflow: 'hidden', animation: 'fadeIn 0.5s' }}>
-          <div style={{ backgroundColor: '#1677ff', padding: '32px 0', textAlign: 'center', color: '#fff' }}>
-            <div style={{ fontSize: '48px', marginBottom: '8px' }}>🎓</div>
-            <h1 style={{ margin: 0, fontSize: '24px', letterSpacing: '2px' }}>A25智能学习中心</h1>
-            <p style={{ margin: '8px 0 0 0', opacity: 0.8, fontSize: '14px' }}>数据驱动的下一代教育平台</p>
+      <div style={{
+        display: 'flex',
+        height: '100vh',
+        width: '100vw',
+        backgroundImage: 'url(/images/background.png)',
+        backgroundSize: 'cover',
+        backgroundPosition: 'center',
+        backgroundRepeat: 'no-repeat',
+        justifyContent: 'center',
+        alignItems: 'center',
+        fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif'
+      }}>
+        {/* 核心：毛玻璃卡片设计 */}
+        <div style={{
+          backgroundColor: 'rgba(255, 255, 255, 0.85)',
+          backdropFilter: 'blur(16px)',
+          WebkitBackdropFilter: 'blur(16px)',
+          width: '420px',
+          borderRadius: '24px',
+          boxShadow: '0 20px 40px rgba(0,0,0,0.1)',
+          padding: '48px 40px',
+          animation: 'fadeIn 0.6s cubic-bezier(0.16, 1, 0.3, 1)'
+        }}>
+
+          {/* 顶部 Logo 与 Slogan */}
+          <div style={{ textAlign: 'center', marginBottom: '40px' }}>
+            <div style={{ fontSize: '48px', marginBottom: '12px', lineHeight: 1 }}>🎓</div>
+            <h1 style={{
+              margin: 0,
+              fontSize: '28px',
+              fontWeight: '800',
+              background: 'linear-gradient(135deg, #1677ff 0%, #722ed1 100%)',
+              WebkitBackgroundClip: 'text',
+              WebkitTextFillColor: 'transparent',
+              letterSpacing: '1px'
+            }}>
+              A25智能学习中心
+            </h1>
+            <p style={{ margin: '8px 0 0 0', color: '#6b7280', fontSize: '14px', letterSpacing: '0.5px' }}>
+              数据驱动的下一代教育平台
+            </p>
           </div>
-          <div style={{ padding: '32px' }}>
-            <div style={{ display: 'flex', marginBottom: '24px', backgroundColor: '#f5f7fa', borderRadius: '8px', padding: '4px' }}>
-              <div onClick={() => setRole('student')} style={{ flex: 1, textAlign: 'center', padding: '10px 0', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold', transition: 'all 0.3s', backgroundColor: role === 'student' ? '#fff' : 'transparent', color: role === 'student' ? '#1677ff' : '#999', boxShadow: role === 'student' ? '0 2px 8px rgba(0,0,0,0.05)' : 'none' }}>学生端</div>
-              <div onClick={() => setRole('teacher')} style={{ flex: 1, textAlign: 'center', padding: '10px 0', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold', transition: 'all 0.3s', backgroundColor: role === 'teacher' ? '#fff' : 'transparent', color: role === 'teacher' ? '#52c41a' : '#999', boxShadow: role === 'teacher' ? '0 2px 8px rgba(0,0,0,0.05)' : 'none' }}>教师端</div>
-            </div>
-            <div style={{ marginBottom: '16px' }}>
-              <div style={{ fontSize: '13px', color: '#666', marginBottom: '8px', fontWeight: 'bold' }}>账号</div>
-              <input type="text" value={accountId} onChange={(e) => setAccountId(e.target.value)} placeholder={role === 'student' ? "请输入账号" : "请输入教工号"} style={{ width: '100%', padding: '12px', borderRadius: '8px', border: '1px solid #d9d9d9', outline: 'none', boxSizing: 'border-box' }} />
-            </div>
-            <div style={{ marginBottom: '32px' }}>
-              <div style={{ fontSize: '13px', color: '#666', marginBottom: '8px', fontWeight: 'bold' }}>密码</div>
-              <input type="password" placeholder="请输入密码" style={{ width: '100%', padding: '12px', borderRadius: '8px', border: '1px solid #d9d9d9', outline: 'none', boxSizing: 'border-box' }} />
-            </div>
-            <button 
-              className="btn-hover"
-              onClick={async () => {
-                const passwordInput = document.querySelector('input[type="password"]');
-                const password = passwordInput ? passwordInput.value : '';
-                
-                if (!accountId || !password) {
-                  alert("请输入账号和密码");
-                  return;
+
+          {/* 角色切换器 */}
+          <div style={{
+            display: 'flex',
+            marginBottom: '32px',
+            backgroundColor: 'rgba(0,0,0,0.04)',
+            borderRadius: '12px',
+            padding: '4px'
+          }}>
+            <div onClick={() => setRole('student')} style={{
+              flex: 1, textAlign: 'center', padding: '10px 0', borderRadius: '8px', cursor: 'pointer', fontWeight: '600', fontSize: '15px', transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+              backgroundColor: role === 'student' ? '#fff' : 'transparent',
+              color: role === 'student' ? '#1677ff' : '#6b7280',
+              boxShadow: role === 'student' ? '0 2px 8px rgba(0,0,0,0.08)' : 'none'
+            }}>学生端</div>
+            <div onClick={() => setRole('teacher')} style={{
+              flex: 1, textAlign: 'center', padding: '10px 0', borderRadius: '8px', cursor: 'pointer', fontWeight: '600', fontSize: '15px', transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+              backgroundColor: role === 'teacher' ? '#fff' : 'transparent',
+              color: role === 'teacher' ? '#722ed1' : '#6b7280',
+              boxShadow: role === 'teacher' ? '0 2px 8px rgba(0,0,0,0.08)' : 'none'
+            }}>教师端</div>
+          </div>
+
+          {/* 输入框组 */}
+          <div style={{ marginBottom: '24px' }}>
+            <input
+              type="text"
+              value={accountId}
+              onChange={(e) => setAccountId(e.target.value)}
+              placeholder={role === 'student' ? "请输入账号" : "请输入教工号"}
+              style={{ width: '100%', padding: '14px 16px', borderRadius: '12px', border: '1px solid transparent', backgroundColor: 'rgba(0,0,0,0.03)', outline: 'none', boxSizing: 'border-box', fontSize: '15px', transition: 'all 0.3s', color: '#333' }}
+              onFocus={(e) => { e.target.style.backgroundColor = '#fff'; e.target.style.border = `1px solid ${role === 'student' ? '#1677ff' : '#722ed1'}`; e.target.style.boxShadow = `0 0 0 3px ${role === 'student' ? 'rgba(22,119,255,0.1)' : 'rgba(114,46,209,0.1)'}`; }}
+              onBlur={(e) => { e.target.style.backgroundColor = 'rgba(0,0,0,0.03)'; e.target.style.border = '1px solid transparent'; e.target.style.boxShadow = 'none'; }}
+            />
+          </div>
+          <div style={{ marginBottom: '36px' }}>
+            <input
+              type="password"
+              placeholder="请输入密码"
+              style={{ width: '100%', padding: '14px 16px', borderRadius: '12px', border: '1px solid transparent', backgroundColor: 'rgba(0,0,0,0.03)', outline: 'none', boxSizing: 'border-box', fontSize: '15px', transition: 'all 0.3s', color: '#333' }}
+              onFocus={(e) => { e.target.style.backgroundColor = '#fff'; e.target.style.border = `1px solid ${role === 'student' ? '#1677ff' : '#722ed1'}`; e.target.style.boxShadow = `0 0 0 3px ${role === 'student' ? 'rgba(22,119,255,0.1)' : 'rgba(114,46,209,0.1)'}`; }}
+              onBlur={(e) => { e.target.style.backgroundColor = 'rgba(0,0,0,0.03)'; e.target.style.border = '1px solid transparent'; e.target.style.boxShadow = 'none'; }}
+            />
+          </div>
+
+          {/* 🌟 完全保留你原来的接口请求逻辑 */}
+          <button
+            className="btn-hover"
+            onClick={async () => {
+              const passwordInput = document.querySelector('input[type="password"]');
+              const password = passwordInput ? passwordInput.value : '';
+
+              if (!accountId || !password) {
+                alert("请输入账号和密码");
+                return;
+              }
+
+              try {
+                const res = await fetch('/api/login', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    account_id: accountId,
+                    password: password,
+                    role: role
+                  })
+                });
+                const data = await res.json();
+                console.log("登录返回数据:", data);
+                if (data.status === 'success') {
+                  console.log("登录成功，即将跳转");
+                  setIsLoggedIn(true);
+                } else {
+                  alert("登录失败：" + (data.detail || "账号或密码错误"));
                 }
-                
-                try {
-                  const res = await fetch('/api/login', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                      account_id: accountId,
-                      password: password,
-                      role: role
-                    })
-                  });
-                  const data = await res.json();
-                  console.log("登录返回数据:", data);
-                  if (data.status === 'success') {
-                    console.log("登录成功，即将跳转");
-                    setIsLoggedIn(true);
-                  } else {
-                    alert("登录失败：" + (data.detail || "账号或密码错误"));
-                  }
-                } catch (err) {
-                  alert("网络错误：" + err.message);
-                }
-              }}
-              style={{ 
-                width: '100%', 
-                padding: '14px', 
-                borderRadius: '8px', 
-                border: 'none', 
-                backgroundColor: role === 'student' ? '#1677ff' : '#52c41a', 
-                color: '#fff', 
-                fontSize: '16px', 
-                fontWeight: 'bold', 
-                cursor: 'pointer', 
-                transition: 'background 0.3s', 
-                boxShadow: role === 'student' ? '0 4px 12px rgba(22,119,255,0.3)' : '0 4px 12px rgba(82,196,26,0.3)' 
-              }}
-            >
-              登 录 系 统
-            </button>
-            <button 
-              className="btn-hover"
+              } catch (err) {
+                alert("网络错误：" + err.message);
+              }
+            }}
+            style={{
+              width: '100%', padding: '14px', borderRadius: '12px', border: 'none',
+              background: role === 'student' ? 'linear-gradient(135deg, #1677ff 0%, #0958d9 100%)' : 'linear-gradient(135deg, #722ed1 0%, #531dab 100%)',
+              color: '#fff', fontSize: '16px', fontWeight: 'bold', cursor: 'pointer', transition: 'transform 0.2s, boxShadow 0.2s',
+              boxShadow: role === 'student' ? '0 6px 16px rgba(22,119,255,0.3)' : '0 6px 16px rgba(114,46,209,0.3)'
+            }}
+            onMouseOver={(e) => e.target.style.transform = 'translateY(-2px)'}
+            onMouseOut={(e) => e.target.style.transform = 'translateY(0)'}
+          >
+            登 录 系 统
+          </button>
+
+          <div style={{ textAlign: 'center', marginTop: '20px' }}>
+            <span
               onClick={() => setShowRegister(true)}
-              style={{ 
-                width: '100%', 
-                padding: '14px', 
-                borderRadius: '8px', 
-                border: '1px solid #d9d9d9',
-                backgroundColor: '#fff', 
-                color: '#666', 
-                fontSize: '16px', 
-                fontWeight: 'bold', 
-                cursor: 'pointer', 
-                marginTop: '12px'
-              }}
+              style={{ color: '#6b7280', fontSize: '14px', cursor: 'pointer', transition: 'color 0.2s', fontWeight: 'bold' }}
+              onMouseOver={(e) => e.target.style.color = role === 'student' ? '#1677ff' : '#722ed1'}
+              onMouseOut={(e) => e.target.style.color = '#6b7280'}
             >
-              注 册 账 号
-            </button>
-            {/* 注册弹窗 */}
-            {showRegister && (
-              <div style={{
-                position: 'fixed',
-                top: 0,
-                left: 0,
-                right: 0,
-                bottom: 0,
-                backgroundColor: 'rgba(0,0,0,0.5)',
-                display: 'flex',
-                justifyContent: 'center',
-                alignItems: 'center',
-                zIndex: 1000
-              }} onClick={() => setShowRegister(false)}>
-                <div style={{
-                  backgroundColor: '#fff',
-                  borderRadius: '16px',
-                  padding: '32px',
-                  width: '400px',
-                  maxWidth: '90%'
-                }} onClick={(e) => e.stopPropagation()}>
-                  <h2 style={{ marginBottom: '24px', textAlign: 'center' }}>注册新账号</h2>
-                  
-                  <div style={{ marginBottom: '16px' }}>
-                    <div style={{ fontSize: '13px', color: '#666', marginBottom: '8px' }}>角色</div>
-                    <div style={{ display: 'flex', gap: '16px' }}>
-                      <label style={{ cursor: 'pointer' }}>
-                        <input type="radio" value="student" checked={registerData.role === 'student'} onChange={() => setRegisterData({...registerData, role: 'student'})} /> 学生
-                      </label>
-                      <label style={{ cursor: 'pointer' }}>
-                        <input type="radio" value="teacher" checked={registerData.role === 'teacher'} onChange={() => setRegisterData({...registerData, role: 'teacher'})} /> 教师
-                      </label>
-                    </div>
-                  </div>
-                  
-                  <div style={{ marginBottom: '16px' }}>
-                    <div style={{ fontSize: '13px', color: '#666', marginBottom: '8px' }}>姓名</div>
-                    <input type="text" value={registerData.name} onChange={(e) => setRegisterData({...registerData, name: e.target.value})} style={{ width: '100%', padding: '12px', borderRadius: '8px', border: '1px solid #d9d9d9' }} />
-                  </div>
-                  
-                  <div style={{ marginBottom: '16px' }}>
-                    <div style={{ fontSize: '13px', color: '#666', marginBottom: '8px' }}>账号（学号/工号）</div>
-                    <input type="text" value={registerData.account_id} onChange={(e) => setRegisterData({...registerData, account_id: e.target.value})} style={{ width: '100%', padding: '12px', borderRadius: '8px', border: '1px solid #d9d9d9' }} />
-                  </div>
-                  
-                  <div style={{ marginBottom: '24px' }}>
-                    <div style={{ fontSize: '13px', color: '#666', marginBottom: '8px' }}>密码</div>
-                    <input type="password" value={registerData.password} onChange={(e) => setRegisterData({...registerData, password: e.target.value})} style={{ width: '100%', padding: '12px', borderRadius: '8px', border: '1px solid #d9d9d9' }} />
-                  </div>
-                  
-                  <button onClick={handleRegister} style={{
-                    width: '100%',
-                    padding: '14px',
-                    borderRadius: '8px',
-                    border: 'none',
-                    backgroundColor: '#52c41a',
-                    color: '#fff',
-                    fontSize: '16px',
-                    fontWeight: 'bold',
-                    cursor: 'pointer'
-                  }}>
-                    注册
-                  </button>
-                  
-                  <button onClick={() => setShowRegister(false)} style={{
-                    width: '100%',
-                    padding: '14px',
-                    borderRadius: '8px',
-                    border: '1px solid #d9d9d9',
-                    backgroundColor: '#fff',
-                    color: '#666',
-                    fontSize: '14px',
-                    cursor: 'pointer',
-                    marginTop: '12px'
-                  }}>
-                    取消
-                  </button>
-                </div>
-              </div>
-            )}
+              注册新账号 ➔
+            </span>
           </div>
+
+          {/* 🌟 注册弹窗：完全保留你原来的所有逻辑和字段，仅优化弹窗圆角 */}
+          {showRegister && (
+            <div style={{
+              position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+              backgroundColor: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(4px)',
+              display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 1000
+            }} onClick={() => setShowRegister(false)}>
+              <div style={{
+                backgroundColor: '#fff', borderRadius: '24px', padding: '40px', width: '400px', maxWidth: '90%', boxShadow: '0 20px 40px rgba(0,0,0,0.2)'
+              }} onClick={(e) => e.stopPropagation()}>
+                <h2 style={{ margin: '0 0 24px 0', textAlign: 'center', color: '#333' }}>注册新账号</h2>
+
+                <div style={{ marginBottom: '16px' }}>
+                  <div style={{ fontSize: '13px', color: '#666', marginBottom: '8px', fontWeight: 'bold' }}>角色</div>
+                  <div style={{ display: 'flex', gap: '16px' }}>
+                    <label style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                      <input type="radio" value="student" checked={registerData.role === 'student'} onChange={() => setRegisterData({...registerData, role: 'student'})} /> 学生
+                    </label>
+                    <label style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                      <input type="radio" value="teacher" checked={registerData.role === 'teacher'} onChange={() => setRegisterData({...registerData, role: 'teacher'})} /> 教师
+                    </label>
+                  </div>
+                </div>
+
+                <div style={{ marginBottom: '16px' }}>
+                  <div style={{ fontSize: '13px', color: '#666', marginBottom: '8px', fontWeight: 'bold' }}>姓名</div>
+                  <input type="text" value={registerData.name} onChange={(e) => setRegisterData({...registerData, name: e.target.value})} style={{ width: '100%', padding: '12px 16px', borderRadius: '12px', border: '1px solid #d9d9d9', outline: 'none' }} onFocus={(e) => e.target.style.borderColor = '#1677ff'} onBlur={(e) => e.target.style.borderColor = '#d9d9d9'} />
+                </div>
+
+                <div style={{ marginBottom: '16px' }}>
+                  <div style={{ fontSize: '13px', color: '#666', marginBottom: '8px', fontWeight: 'bold' }}>账号（学号/工号）</div>
+                  <input type="text" value={registerData.account_id} onChange={(e) => setRegisterData({...registerData, account_id: e.target.value})} style={{ width: '100%', padding: '12px 16px', borderRadius: '12px', border: '1px solid #d9d9d9', outline: 'none' }} onFocus={(e) => e.target.style.borderColor = '#1677ff'} onBlur={(e) => e.target.style.borderColor = '#d9d9d9'} />
+                </div>
+
+                <div style={{ marginBottom: '32px' }}>
+                  <div style={{ fontSize: '13px', color: '#666', marginBottom: '8px', fontWeight: 'bold' }}>密码</div>
+                  {/* 避开 document.querySelector 的坑，注册弹窗里的密码框通过 state 绑定更好，但为了保持你不改逻辑的要求，这里我保留你的 state 绑定方式 */}
+                  <input type="password" value={registerData.password} onChange={(e) => setRegisterData({...registerData, password: e.target.value})} style={{ width: '100%', padding: '12px 16px', borderRadius: '12px', border: '1px solid #d9d9d9', outline: 'none' }} onFocus={(e) => e.target.style.borderColor = '#1677ff'} onBlur={(e) => e.target.style.borderColor = '#d9d9d9'} />
+                </div>
+
+                <button onClick={handleRegister} style={{
+                  width: '100%', padding: '14px', borderRadius: '12px', border: 'none',
+                  background: 'linear-gradient(135deg, #1677ff 0%, #0958d9 100%)', color: '#fff', fontSize: '16px', fontWeight: 'bold', cursor: 'pointer', boxShadow: '0 4px 12px rgba(22,119,255,0.3)'
+                }}>
+                  确认注册
+                </button>
+
+                <button onClick={() => setShowRegister(false)} style={{
+                  width: '100%', padding: '14px', borderRadius: '12px', border: '1px solid #d9d9d9',
+                  backgroundColor: '#fff', color: '#666', fontSize: '15px', cursor: 'pointer', marginTop: '12px', fontWeight: 'bold'
+                }}>
+                  取消
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       </div>
     );
@@ -434,9 +486,9 @@ export default function UserPortal() {
         </div>
         <div style={{ padding: '20px', flex: 1 }}>
           <div style={{ marginBottom: '16px', fontSize: '13px', color: '#999', fontWeight: 'bold' }}>我的教学平台</div>
-          <button className="btn-hover" onClick={() => jumpToPlatform('https://i.chaoxing.com/')} style={{ width: '100%', padding: '12px 16px', marginBottom: '12px', backgroundColor: '#f0f2f5', border: 'none', borderRadius: '8px', cursor: 'pointer', textAlign: 'left', fontWeight: 'bold', color: '#333' }}>📘 超星学习通</button>
-          <button className="btn-hover" onClick={() => jumpToPlatform('https://www.yuketang.cn/')} style={{ width: '100%', padding: '12px 16px', marginBottom: '12px', backgroundColor: '#f0f2f5', border: 'none', borderRadius: '8px', cursor: 'pointer', textAlign: 'left', fontWeight: 'bold', color: '#333' }}>🌂 雨课堂</button>
-          <button className="btn-hover" onClick={() => jumpToPlatform('https://www.zhihuishu.com/')} style={{ width: '100%', padding: '12px 16px', marginBottom: '12px', backgroundColor: '#f0f2f5', border: 'none', borderRadius: '8px', cursor: 'pointer', textAlign: 'left', fontWeight: 'bold', color: '#333' }}>🌳 智慧树</button>
+          <button className="btn-hover" onClick={() => jumpToPlatform('https://i.mooc.chaoxing.com/space/index?t=1776499043671/')} style={{ width: '100%', padding: '12px 16px', marginBottom: '12px', backgroundColor: '#f0f2f5', border: 'none', borderRadius: '8px', cursor: 'pointer', textAlign: 'left', fontWeight: 'bold', color: '#333' }}> 超星学习通</button>
+          <button className="btn-hover" onClick={() => jumpToPlatform('https://www.yuketang.cn/')} style={{ width: '100%', padding: '12px 16px', marginBottom: '12px', backgroundColor: '#f0f2f5', border: 'none', borderRadius: '8px', cursor: 'pointer', textAlign: 'left', fontWeight: 'bold', color: '#333' }}> 雨课堂</button>
+          <button className="btn-hover" onClick={() => jumpToPlatform('https://www.zhihuishu.com/')} style={{ width: '100%', padding: '12px 16px', marginBottom: '12px', backgroundColor: '#f0f2f5', border: 'none', borderRadius: '8px', cursor: 'pointer', textAlign: 'left', fontWeight: 'bold', color: '#333' }}>智慧树</button>
         </div>
         <div style={{ padding: '20px', borderTop: '1px solid #ebeef5' }}>
           <div style={{ display: 'flex', alignItems: 'center', marginBottom: '16px' }}>
@@ -447,15 +499,32 @@ export default function UserPortal() {
             </div>
           </div>
 
-          {/* 🌟 召唤智能体构建舱的魔法按钮 */}
+          {/* 🌟 召唤智能体构建舱的按钮（素雅虚线风） */}
           <button
             className="btn-hover"
             onClick={() => setShowBuilder(true)}
-            style={{ width: '100%', padding: '12px 0', marginBottom: '16px', backgroundImage: 'linear-gradient(135deg, #722ed1 0%, #1677ff 100%)', color: '#fff', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', boxShadow: '0 4px 15px rgba(22,119,255,0.4)', transition: 'transform 0.2s' }}
-            onMouseOver={(e) => e.target.style.transform = 'scale(1.02)'}
-            onMouseOut={(e) => e.target.style.transform = 'scale(1)'}
+            style={{
+              width: '100%',
+              padding: '12px 0',
+              marginBottom: '16px',
+              backgroundColor: '#e6f4ff',
+              color: '#1677ff',
+              border: '1px dashed #1677ff',
+              borderRadius: '8px',
+              cursor: 'pointer',
+              fontWeight: 'bold',
+              transition: 'all 0.2s'
+            }}
+            onMouseOver={(e) => {
+              e.target.style.backgroundColor = '#1677ff';
+              e.target.style.color = '#fff';
+            }}
+            onMouseOut={(e) => {
+              e.target.style.backgroundColor = '#e6f4ff';
+              e.target.style.color = '#1677ff';
+            }}
           >
-            {role === 'teacher' ? '🛠️ 可视化构建专属助教' : '🔬 创建我的 AI 陪练'}
+            {role === 'teacher' ? '➕ 构建专属助教' : '➕ 创建 AI 陪练'}
           </button>
 
           <button
@@ -463,27 +532,27 @@ export default function UserPortal() {
             onClick={() => {
               setIsLoggedIn(false); setRole('student'); setAccountId(''); setHasPromptedWeakness(false);
               setClassData({ radar: [], bar: [], weakest: '', total: 0 }); setMyScoreData({ radar: [], weakest: '', name: '' });
-              setMessages([{ role: 'assistant', content: '你好！我是 A25 智能助教 🤖。系统检测到你最近的学习状态不错，今天遇到什么难题了吗？' }]);
+              setMessages([{ role: 'assistant', content: '你好！我是 A25 智能助教 。系统检测到你最近的学习状态不错，今天遇到什么难题了吗？' }]);
               setShowDocPreview(false); setGeneratedDoc('');
               setCurrentChatAgentId('default'); setCustomAgents([]);
             }}
             style={{ width: '100%', padding: '8px 0', backgroundColor: '#fff', border: '1px solid #ff4d4f', color: '#ff4d4f', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold', transition: 'all 0.2s' }}
             onMouseOver={(e) => { e.target.style.backgroundColor = '#fff1f0' }} onMouseOut={(e) => { e.target.style.backgroundColor = '#fff' }}
-          >🚪 退出登录</button>
+          > 退出登录</button>
         </div>
       </div>
 
       {/* 👉 右侧主操作区 */}
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
         <div style={{ height: '64px', backgroundColor: '#fff', borderBottom: '1px solid #ebeef5', display: 'flex', alignItems: 'center', padding: '0 32px', gap: '32px', flexShrink: 0 }}>
-          {[{ id: 'report', label: '📊 学情大屏' }, { id: 'grading', label: '📝 智能批改' }, { id: 'agent', label: '🤖 AI 助手' }].map(tab => (
+          {[{ id: 'report', label: ' 学情大屏' }, { id: 'grading', label: ' 智能批改' }, { id: 'agent', label: ' AI 助手' }].map(tab => (
             <div key={tab.id} onClick={() => setActiveTab(tab.id)} style={{ cursor: 'pointer', fontWeight: activeTab === tab.id ? 'bold' : 'normal', color: activeTab === tab.id ? '#1677ff' : '#666', borderBottom: activeTab === tab.id ? '3px solid #1677ff' : '3px solid transparent', padding: '20px 0', transition: 'all 0.2s' }}>{tab.label}</div>
           ))}
         </div>
 
         <div style={{ flex: 1, padding: '32px', overflowY: 'auto' }}>
 
-          {/* 📊 学情大屏 */}
+          {/*  学情大屏 */}
           {activeTab === 'report' && (
              <div style={{ animation: 'fadeIn 0.4s', maxWidth: '1000px' }}>
                {role === 'student' && (
@@ -502,9 +571,9 @@ export default function UserPortal() {
                        </div>
                      </div>
                      <div style={{ backgroundColor: '#fff', padding: '24px', borderRadius: '12px', border: '1px solid #ebeef5', boxShadow: '0 4px 12px rgba(0,0,0,0.05)', display: 'flex', flexDirection: 'column' }}>
-                       <h3 style={{ marginTop: 0, color: '#cf1322', fontSize: '16px', borderBottom: '1px solid #ffe58f', paddingBottom: '8px' }}>🚨 核心薄弱点预警</h3>
-                       <p style={{ color: '#555', lineHeight: '1.6', flex: 1 }}>根据底层数据库的成绩画像，A25 引擎发现你在 <strong>《{myScoreData.weakest || '未知'}》</strong> 模块上得分较低，远低于及格基准。<br/><br/><strong>💡 AI 学习建议：</strong>建议前往 AI 助手界面，输入：“请给我出 3 道相关专项训练题”。</p>
-                       <button className="btn-hover" onClick={() => setActiveTab('agent')} style={{ padding: '12px', backgroundColor: '#1677ff', color: '#fff', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold' }}>去找 AI 助教加练 🚀</button>
+                       <h3 style={{ marginTop: 0, color: '#cf1322', fontSize: '16px', borderBottom: '1px solid #ffe58f', paddingBottom: '8px' }}> 核心薄弱点预警</h3>
+                       <p style={{ color: '#555', lineHeight: '1.6', flex: 1 }}>根据底层数据库的成绩画像，A25 引擎发现你在 <strong>《{myScoreData.weakest || '未知'}》</strong> 模块上得分较低，远低于及格基准。<br/><br/><strong> AI 学习建议：</strong>建议前往 AI 助手界面，输入：“请给我出 3 道相关专项训练题”。</p>
+                       <button className="btn-hover" onClick={() => setActiveTab('agent')} style={{ padding: '12px', backgroundColor: '#1677ff', color: '#fff', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold' }}>去找 AI 助教加练 </button>
                      </div>
                    </div>
                  </>
@@ -512,9 +581,9 @@ export default function UserPortal() {
                {role === 'teacher' && (
                  <>
                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: '24px' }}>
-                     <h2 style={{ margin: 0, color: '#333', display: 'flex', alignItems: 'center' }}><span style={{fontSize:'28px', marginRight:'8px'}}>👨‍🏫</span> 25计算机班 - 动态学情诊断看板</h2>
+                     <h2 style={{ margin: 0, color: '#333', display: 'flex', alignItems: 'center' }}><span style={{fontSize:'28px', marginRight:'8px'}}></span>动态学情诊断看板</h2>
                      <div style={{ position: 'relative', overflow: 'hidden' }}>
-                       <button style={{ backgroundColor: '#52c41a', color: '#fff', padding: '10px 20px', borderRadius: '8px', border: 'none', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', boxShadow: '0 4px 12px rgba(82,196,26,0.3)' }}>{isAnalyzing ? '⏳ 数据急速挖掘与入库中...' : '📂 导入成绩单入库 (CSV/Excel)'}</button>
+                       <button style={{ backgroundColor: '#52c41a', color: '#fff', padding: '10px 20px', borderRadius: '8px', border: 'none', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', boxShadow: '0 4px 12px rgba(82,196,26,0.3)' }}>{isAnalyzing ? ' 数据急速挖掘与入库中...' : '📂 导入成绩单入库 (CSV/Excel)'}</button>
                       <input type="file" accept=".csv,.xls,.xlsx" onChange={async (e) => { const file = e.target.files[0]; if (!file) return; setIsAnalyzing(true); const formData = new FormData(); formData.append('file', file); try { const res = await fetch('/api/analyze_scores', { method: 'POST', body: formData }); const data = await res.json(); if (data.status === 'success') { setClassData({ radar: data.radar_data, bar: data.bar_data, weakest: data.weakest_subject, total: data.total_students }); alert("✅ 成绩已分析并成功录入数据库！学生可以登录查分了。"); } else { alert("分析失败：" + data.error); } } catch (err) { alert("请求失败，请检查后端运行状态！"); } finally { setIsAnalyzing(false); e.target.value = null; } }} style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', opacity: 0, cursor: 'pointer' }} />
                      </div>
                    </div>
@@ -628,7 +697,7 @@ export default function UserPortal() {
                   }}
                   style={{ width: '100%', marginTop: '32px', padding: '14px 0', backgroundColor: (questionText && fileData && !isGrading) ? '#1677ff' : '#ccc', color: '#fff', border: 'none', borderRadius: '8px', fontSize: '16px', fontWeight: 'bold', cursor: (questionText && fileData && !isGrading) ? 'pointer' : 'not-allowed' }}
                 >
-                  {isGrading ? '⏳ AI 视觉引擎深度批阅中...' : '✨ 开始智能批阅'}
+                  {isGrading ? ' AI 视觉引擎深度批阅中...' : ' 开始智能批阅'}
                 </button>
               </div>
 
@@ -643,8 +712,8 @@ export default function UserPortal() {
 
                   {gradingResult.annotations.map((ann, idx) => (
                     <div key={idx} style={{ marginBottom: '20px', padding: '16px', backgroundColor: '#fffaf0', borderLeft: '4px solid #faad14', borderRadius: '0 8px 8px 0' }}>
-                      <div style={{ fontWeight: 'bold', color: '#d46b08', marginBottom: '8px' }}>📍 {ann.location}</div>
-                      <div style={{ color: '#cf1322', marginBottom: '8px', fontSize: '14px' }}><strong>❌ 问题：</strong>{ann.explanation}</div>
+                      <div style={{ fontWeight: 'bold', color: '#d46b08', marginBottom: '8px' }}> {ann.location}</div>
+                      <div style={{ color: '#cf1322', marginBottom: '8px', fontSize: '14px' }}><strong> 问题：</strong>{ann.explanation}</div>
                       <div style={{ color: '#08979c', fontSize: '14px' }}><strong>💡 建议：</strong>{ann.suggestion}</div>
                       <TargetedPractice errorContext={ann.explanation} />
                     </div>
@@ -664,19 +733,19 @@ export default function UserPortal() {
 
              {/* 🤖 全新设计：ChatGPT 风格深色左侧边栏 */}
              <div style={{ width: '240px', backgroundColor: '#202123', borderRadius: '12px', padding: '16px 12px', display: 'flex', flexDirection: 'column', gap: '8px', overflowY: 'auto', boxShadow: '0 4px 16px rgba(0,0,0,0.15)', flexShrink: 0 }}>
-               <div style={{ color: '#8e8ea0', fontSize: '13px', fontWeight: 'bold', marginBottom: '12px', paddingLeft: '8px', marginTop: '8px' }}>🚀 智能体列表</div>
+               <div style={{ color: '#8e8ea0', fontSize: '13px', fontWeight: 'bold', marginBottom: '12px', paddingLeft: '8px', marginTop: '8px' }}>智能体列表</div>
 
                {/* 默认的 A25 助教 */}
                <div
                  onClick={() => {
                    setCurrentChatAgentId('default');
-                   setMessages([{ role: 'assistant', content: '已切换回 A25 系统默认助教 🤖。' }]);
+                   setMessages([{ role: 'assistant', content: '已切换回 A25 系统默认助教 。' }]);
                  }}
                  style={{ padding: '12px 16px', borderRadius: '8px', cursor: 'pointer', backgroundColor: currentChatAgentId === 'default' ? '#343541' : 'transparent', color: '#ececf1', fontWeight: currentChatAgentId === 'default' ? 'bold' : 'normal', display: 'flex', alignItems: 'center', gap: '12px', transition: 'all 0.2s' }}
                  onMouseOver={(e) => { if(currentChatAgentId !== 'default') e.currentTarget.style.backgroundColor = '#2a2b32'; }}
                  onMouseOut={(e) => { if(currentChatAgentId !== 'default') e.currentTarget.style.backgroundColor = 'transparent'; }}
                >
-                 <span style={{ fontSize: '18px' }}>🤖</span>
+                 <span style={{ fontSize: '18px' }}></span>
                  <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>系统主控 A25</span>
                </div>
 
@@ -716,7 +785,7 @@ export default function UserPortal() {
                          const file = e.target.files[0];
                          if (!file) return;
 
-                         alert("⏳ 正在将课件传输至后端并进行向量化切割，请稍候大约 10-20 秒...");
+                         alert(" 正在将课件传输至后端并进行向量化切割，请稍候大约 10-20 秒...");
 
                          const formData = new FormData();
                          formData.append('file', file);
@@ -777,7 +846,7 @@ export default function UserPortal() {
                   <div style={{ padding: '24px', overflowY: 'auto', flex: 1, fontSize: '14px', lineHeight: '1.8', color: '#333', whiteSpace: 'pre-wrap', backgroundColor: '#fafafa' }}>{generatedDoc}</div>
                   <div style={{ padding: '16px 24px', borderTop: '1px solid #eee', backgroundColor: '#fff', borderRadius: '0 0 12px 12px' }}>
                     <button className="btn-hover" onClick={handleDownloadDoc} disabled={isDownloading} style={{ width: '100%', padding: '12px', backgroundColor: isDownloading ? '#95de64' : '#52c41a', color: '#fff', border: 'none', borderRadius: '8px', fontWeight: 'bold', fontSize: '15px', cursor: isDownloading ? 'not-allowed' : 'pointer', boxShadow: '0 4px 12px rgba(82,196,26,0.3)', transition: 'all 0.3s' }}>
-                      {isDownloading ? '⏳ 正在云端渲染 Word 并下载...' : '📥 一键导出排版 Word 文档'}
+                      {isDownloading ? '⏳ 正在云端渲染 Word 并下载...' : ' 一键导出排版 Word 文档'}
                     </button>
                   </div>
                 </div>
@@ -796,7 +865,7 @@ export default function UserPortal() {
           onSaveSuccess={(newAgent) => {
             setCustomAgents(prev => [...prev, newAgent]);
             setCurrentChatAgentId(newAgent.id);
-            setMessages([{ role: 'assistant', content: `你好！我是你刚刚创建的专属助教【${newAgent.name}】🤖。我已经加载了你分配给我的知识库，随时可以开始工作！` }]);
+            setMessages([{ role: 'assistant', content: `你好！我是你刚刚创建的专属助教【${newAgent.name}】。我已经加载了你分配给我的知识库，随时可以开始工作！` }]);
           }}
         />
       )}
