@@ -55,7 +55,7 @@ class AgentTools:
                 resp = await client.post(
                     f"{RAG_SERVICE_URL}/retrieve",
                     json={"query": query, "course_id": course_id},
-                    timeout=15.0,
+                    timeout=60.0,
                 )
 
             if resp.status_code == 200:
@@ -381,29 +381,111 @@ class A25Agent:
             "raw_ai_output": raw_text,
         }
 
-    # ------------------------------------------
-    # 核心引擎：深度批改作业
-    # ------------------------------------------
     async def grade_homework(self, question_text: str, content_type: str, content: str, course_id: str) -> str:
-        print(f"\n🔍 [批改引擎启动] 课程：{course_id}", flush=True)
-        sys_prompt = f"""你现在是《{course_id}》课程的资深教授。请对作业进行【精细化批改】。
-【原题要求】：{question_text}
-必须且只能输出合法的 JSON 对象。格式要求包含 overall_score, summary, annotations (location, quoted_text, error_type, explanation, suggestion)。"""
+        import asyncio
 
-        messages = [SystemMessage(content=sys_prompt)]
+        print(f"\n🔍 [批改引擎启动] 课程：{course_id}", flush=True)
+        print("📡 正在向知识库请求该题目的批改细则...", flush=True)
+        rag_rules = await AgentTools.course_knowledge_search("Excel批改规则 评分细则 RANK函数 条件格式", course_id)
+
+        few_shot_example = """
+            【批改范例】：
+            学生原文：“选中F2单元格，输入公式 =RANK(D2,$D$2:$D$N,0)”
+            老师批注：[{"target_text": "=RANK(D2,$D$2:$D$N,0)", "error_type": "函数使用不规范", "explanation": "根据考纲要求，必须使用新版函数 RANK.EQ。"}]
+
+            学生原文：“在空白单元格（如G1）输入 =AVERAGE(B:B)”
+            老师批注：[{"target_text": "=AVERAGE(B:B)", "error_type": "架构不达标", "explanation": "严禁使用辅助单元格。必须将 AVERAGE 嵌套进主公式中。"}]
+            """
+
+        sys_prompt = f"""你现在是《{course_id}》课程极其严厉、一丝不苟的资深教授。请对学生的作业进行【精准红线批改】。
+            【原题要求】：{question_text}
+            【权威批改标准库（请严格对照每一条规则）】：\n{rag_rules}
+
+            【🔴 降噪与核心格式指令（最高优先级）】：
+            1. 抓大放小：只抓核心考点和红线违规。对于拼写错误、标点符号等无伤大雅的瑕疵，直接忽略，绝不要生成批注。全对的操作不需要表扬。
+            2. 你必须且只能输出合法的 JSON 对象，不要包含任何 Markdown 标记。
+            3. 为了防止你漏看，你必须在 JSON 中首先生成一个 `step_by_step_check` 数组核对红线规则。
+            4. annotations 数组内的 `target_text` 必须【一字不差】地摘录学生原文中存在错误的那句话。摘录的句子必须足够长且具有唯一性（至少包含15个字符，尽量包含具体的公式或数据），绝不允许只摘录通用短语。
+
+            输出格式必须严格符合以下结构：
+            {{
+                "step_by_step_check": [
+                "检查规则1(条件格式)：学生仅写了 =A2>60，未说明引用范围，记录错误。"
+                ],
+                "overall_score": 70,
+                "summary": "发现关键公式规范错误，特别是绝对引用的缺失。",
+                "annotations": [
+                 {{
+                    "location": "步骤4",
+                    "quoted_text": "=RANK(D2,D2:DN,0)",
+                    "target_text": "=RANK(D2,D2:DN,0)",
+                    "error_type": "严重逻辑错误",
+                    "explanation": "RANK函数的范围区域未加绝对引用符号$，下拉会引发错位。",
+                    "suggestion": "请修改为包含绝对引用的 $D$2:$D$N"
+                }}
+                ]
+        }}{few_shot_example}
+    现在，请参照上述范例的【细致程度】和【严格标准】，对以下作业进行地毯式审查。
+    【 执行指令：地毯式规则比对审计】
+    在生成最终的 annotations 之前，你必须在 `step_by_step_check` 字段中完成以下审计动作：
+    1. 规则提取：列出本次批改必须执行的硬性红线（如：RANK.EQ、>=80必须带等号、硬件参数缩减、公式嵌套要求、三键合击）。
+    2. 逐项扫描：扫描学生作业的每一行，仅记录与红线冲突的地方。
+
+    只有当你完成了上述审计后，才准许生成 annotations 数组。"""
+
         if content_type == "image":
             image_url = content if content.startswith("data:image") else f"data:image/jpeg;base64,{content}"
-            messages.append(
-                HumanMessage(
-                    content=[
+            messages = [
+                SystemMessage(content=sys_prompt),
+                HumanMessage(content=[
                         {"type": "text", "text": "这是作业截图，请批阅。"},
                         {"type": "image_url", "image_url": {"url": image_url}},
-                    ]
-                )
-            )
-        else:
-            messages.append(HumanMessage(content=f"作业文本：\n{content}"))
+                ])
+            ]
+            return await self._execute_llm_with_retry(messages)
 
+        lines = content.split('\n')
+        chunk_size = 70
+        chunks = ["\n".join(lines[i:i + chunk_size]) for i in range(0, len(lines), chunk_size)]
+
+        all_annotations = []
+        full_checks = []
+        final_scores = []
+        summaries = []
+
+        async def process_chunk(index, chunk):
+            print(f"🚀 并发线程 [{index + 1}/{len(chunks)}] 正在处理...", flush=True)
+            messages = [SystemMessage(content=sys_prompt), HumanMessage(content=f"作业文本：\n{chunk}")]
+            return await self._execute_llm_with_retry(messages)
+
+        results = await asyncio.gather(*(process_chunk(i, c) for i, c in enumerate(chunks)))
+
+        for chunk_json_str in results:
+            try:
+                data = json.loads(chunk_json_str)
+                all_annotations.extend(data.get("annotations", []))
+                full_checks.extend(data.get("step_by_step_check", []))
+
+                cur_score = data.get("overall_score", 100)
+                if str(cur_score).isdigit():
+                    final_scores.append(int(cur_score))
+
+                if data.get("summary"):
+                    summaries.append(data.get("summary"))
+            except Exception:
+                continue
+
+        final_score = min(final_scores) if final_scores else 100
+        global_summary = summaries[0] if summaries else "批改完成"
+
+        return json.dumps({
+            "overall_score": final_score,
+            "summary": global_summary,
+            "step_by_step_check": full_checks,
+            "annotations": all_annotations
+        }, ensure_ascii=False)
+
+    async def _execute_llm_with_retry(self, messages):
         for _ in range(3):
             try:
                 response = await self.llm.ainvoke(messages)
@@ -411,11 +493,12 @@ class A25Agent:
                 match = re.search(r"\{[\s\S]*\}", raw_text)
                 if match:
                     json_str = re.sub(r"[\r\n\t]+", " ", match.group(0)).strip()
-                    json.loads(json_str)  # 校验格式
+                    json.loads(json_str)
+                    print("✅ 批改 JSON 生成成功！", flush=True)
                     return json_str
-            except Exception:
+            except Exception as e:
+                print(f"⚠️ 生成重试: {e}", flush=True)
                 continue
-
         return json.dumps({"overall_score": 0, "summary": "批改服务繁忙", "annotations": []}, ensure_ascii=False)
 
     # ------------------------------------------

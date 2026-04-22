@@ -310,19 +310,26 @@ async def grade_homework_endpoint(request: HomeworkRequest):
             def clean_str(s): return re.sub(r'\W+', '', s)
 
             for ann in grading_data.get("annotations", []):
-                target_text = ann.get("quoted_text", "")
+                target_text = ann.get("target_text", "") or ann.get("quoted_text", "")
                 if not target_text: continue
                 clean_target = clean_str(target_text)
+
                 found_paragraph = None
+                max_overlap = 0
 
                 for paragraph in doc_obj.paragraphs:
                     if not paragraph.text.strip() or not paragraph.runs: continue
                     clean_para = clean_str(paragraph.text)
-                    if clean_target and (clean_target in clean_para or clean_para in clean_target):
+
+                    if clean_target and clean_target in clean_para:
                         found_paragraph = paragraph
                         break
 
-                        # 🌟 使用 .get() 安全取值，如果 AI 漏给了字段，就用默认值兜底
+                    elif clean_target and clean_para in clean_target:
+                        if len(clean_para) > 10 and len(clean_para) > max_overlap:
+                            max_overlap = len(clean_para)
+                            found_paragraph = paragraph
+
                 error_type = ann.get('error_type', '逻辑错误')
                 explanation = ann.get('explanation', '解答存在瑕疵。')
                 suggestion = ann.get('suggestion', '请重新检查此处的上下文逻辑。')
@@ -330,13 +337,13 @@ async def grade_homework_endpoint(request: HomeworkRequest):
 
                 comment_text = f"【{error_type}】\n{explanation}\n💡建议：{suggestion}"
 
-                # 🌟 写入 Word 批注
                 if found_paragraph:
-                    doc_obj.add_comment(found_paragraph.runs, text=comment_text, author="A25教授",initials="AI")
+                    doc_obj.add_comment(found_paragraph.runs, text=comment_text, author="A25教授", initials="AI")
                 else:
-                    for p in doc_obj.paragraphs:
+                    for p in reversed(doc_obj.paragraphs):
                         if p.text.strip() and p.runs:
-                            doc_obj.add_comment(p.runs, text=f"【原位置：{location}】\n" + comment_text,
+                            doc_obj.add_comment(p.runs,
+                                                text=f"【原位置：{location}】\n(原文未精确定位: {target_text})\n{comment_text}",
                                                 author="A25教授", initials="AI")
                             break
 
@@ -519,7 +526,7 @@ async def mock_ai_generate(request: Request):
     """
     假装是大模型的挡板接口。
     """
-    # 模拟大模型思考的延迟
+    # 模拟大模型思考的延迟A
     await asyncio.sleep(random.uniform(1.0, 2.5))
     return {
         "status": "success",
